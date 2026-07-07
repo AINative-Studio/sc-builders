@@ -67,7 +67,7 @@ class TestTableCRUD:
         c, pid = db_client
         r = c.post(
             f"/api/v1/projects/{pid}/database/tables",
-            json={"name": self.TABLE_NAME},
+            json={"table_name": self.TABLE_NAME},
         )
         assert r.status_code in (200, 201, 409), f"Create table: {r.text}"
 

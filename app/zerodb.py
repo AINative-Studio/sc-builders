@@ -8,7 +8,7 @@ def _table_path(table: str) -> str:
 
 async def create_table(name: str, *, bearer_token: str | None = None) -> dict:
     path = f"/api/v1/projects/{settings.project_id}/database/tables"
-    r = await api_request("POST", path, json={"name": name}, bearer_token=bearer_token)
+    r = await api_request("POST", path, json={"table_name": name}, bearer_token=bearer_token)
     r.raise_for_status()
     return r.json()
 
