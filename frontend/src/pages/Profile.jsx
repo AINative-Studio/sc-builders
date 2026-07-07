@@ -14,6 +14,7 @@ const AGENT_JSON = `{
 export default function Profile() {
   const nav = useNavigate();
   const [agentView, setAgentView] = useState(false);
+  const [following, setFollowing] = useState(false);
 
   const tabStyle = (active) => ({
     fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: '11.5px',
@@ -42,7 +43,13 @@ export default function Profile() {
               <span><b style={{ color: 'var(--fg)', fontFamily: "'Space Grotesk'" }}>3</b> intents</span>
             </div>
           </div>
-          <button style={{ fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: '12.5px', color: '#fff', background: 'var(--primary)', padding: '8px 15px', border: 'none', borderRadius: 9, cursor: 'pointer' }}>Follow</button>
+          <button onClick={() => setFollowing(f => !f)} style={{
+            fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: '12.5px',
+            color: following ? 'var(--mfg)' : '#fff',
+            background: following ? 'transparent' : 'var(--primary)',
+            border: following ? '1px solid var(--border)' : 'none',
+            padding: '8px 15px', borderRadius: 9, cursor: 'pointer',
+          }}>{following ? 'Following' : 'Follow'}</button>
         </div>
 
         <div style={{ padding: '14px 24px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid var(--border)' }}>

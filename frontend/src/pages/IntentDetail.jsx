@@ -1,8 +1,12 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Badge from '../components/Badge';
 
 export default function IntentDetail() {
   const nav = useNavigate();
+  const [nudged, setNudged] = useState(false);
+  const [delegated, setDelegated] = useState(false);
+  const [resolved, setResolved] = useState(false);
 
   const timeline = [
     { color: 'var(--success)', text: <><b>ana</b> responded — available Thu afternoon</>, sub: '12m ago · match 98%', subColor: 'var(--success)' },
@@ -18,7 +22,9 @@ export default function IntentDetail() {
         <div style={{ padding: '22px 24px 18px', borderBottom: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
             <Badge type="INTENT" />
-            <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--success)' }}>● OPEN · 3 days</span>
+            <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: resolved ? 'var(--mfg)' : 'var(--success)' }}>
+              {resolved ? '✓ RESOLVED' : '● OPEN · 3 days'}
+            </span>
           </div>
           <h2 style={{ fontFamily: "'Space Grotesk'", fontWeight: 700, fontSize: 22, letterSpacing: '-.3px', margin: '0 0 4px', lineHeight: 1.2, color: 'var(--fg)' }}>Looking for a Rust / WASM developer</h2>
           <div style={{ fontSize: 13, color: 'var(--mfg)' }}>posted by <b style={{ color: 'var(--fg)' }}>toby</b> · #wasm #rust #pairing</div>
@@ -63,9 +69,41 @@ export default function IntentDetail() {
         </div>
 
         <div style={{ padding: '14px 24px 18px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center' }}>
-          <button style={{ fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: 13, color: '#fff', background: 'var(--accent)', padding: '10px 18px', border: 'none', borderRadius: 9, cursor: 'pointer' }}>Nudge kai</button>
-          <button onClick={() => nav('/discovery')} style={{ fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: 13, color: 'var(--fg)', border: '1px solid var(--border)', background: 'var(--card)', padding: '10px 16px', borderRadius: 9, cursor: 'pointer' }}>Let agent handle</button>
-          <button style={{ marginLeft: 'auto', fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: 13, color: 'var(--success)', background: 'none', border: 'none', cursor: 'pointer' }}>Mark resolved</button>
+          <button
+            onClick={() => setNudged(true)}
+            disabled={nudged}
+            style={{
+              fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: 13,
+              color: '#fff',
+              background: nudged ? 'var(--mfg)' : 'var(--accent)',
+              padding: '10px 18px', border: 'none', borderRadius: 9,
+              cursor: nudged ? 'default' : 'pointer',
+              opacity: nudged ? 0.6 : 1,
+            }}
+          >{nudged ? 'Nudged ✓' : 'Nudge kai'}</button>
+          <button
+            onClick={() => setDelegated(true)}
+            disabled={delegated}
+            style={{
+              fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: 13,
+              color: delegated ? 'var(--success)' : 'var(--fg)',
+              border: '1px solid var(--border)',
+              background: 'var(--card)',
+              padding: '10px 16px', borderRadius: 9,
+              cursor: delegated ? 'default' : 'pointer',
+            }}
+          >{delegated ? 'Agent handling ✓' : 'Let agent handle'}</button>
+          <button
+            onClick={() => setResolved(true)}
+            disabled={resolved}
+            style={{
+              marginLeft: 'auto',
+              fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: 13,
+              color: resolved ? 'var(--mfg)' : 'var(--success)',
+              background: 'none', border: 'none',
+              cursor: resolved ? 'default' : 'pointer',
+            }}
+          >{resolved ? 'Resolved ✓' : 'Mark resolved'}</button>
         </div>
       </div>
     </div>

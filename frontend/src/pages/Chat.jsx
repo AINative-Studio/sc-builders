@@ -186,7 +186,11 @@ export default function Chat() {
           borderRadius: 11, padding: '11px 13px',
         }}>
           <span style={{ color: 'var(--mfg)', fontSize: 16 }}>+</span>
-          <span style={{ flex: 1, fontSize: 14, color: 'var(--mfg)' }}>Reply, or ask AI to update the state…</span>
+          <input
+            type="text"
+            placeholder="Reply, or ask AI to update the state…"
+            style={{ flex: 1, fontSize: 14, color: 'var(--fg)', background: 'transparent', border: 'none', outline: 'none', fontFamily: 'Inter' }}
+          />
           <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--mfg)' }}>↵</span>
         </div>
       </div>

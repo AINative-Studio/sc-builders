@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const ATTENDEES = [
@@ -9,6 +10,16 @@ const ATTENDEES = [
 
 export default function EventDetail() {
   const nav = useNavigate();
+  const [rsvp, setRsvp] = useState('going');
+
+  const btnStyle = (active) => ({
+    fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: 14,
+    color: active ? '#fff' : 'var(--fg)',
+    background: active ? 'var(--primary)' : 'var(--card)',
+    border: active ? 'none' : '1px solid var(--border)',
+    padding: active ? '11px 22px' : '11px 18px',
+    borderRadius: 10, cursor: 'pointer',
+  });
 
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', padding: 24 }}>
@@ -50,8 +61,8 @@ export default function EventDetail() {
           </div>
         </div>
         <div style={{ padding: '14px 24px 18px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center' }}>
-          <button style={{ fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: 14, color: '#fff', background: 'var(--primary)', border: 'none', padding: '11px 22px', borderRadius: 10, cursor: 'pointer' }}>Going</button>
-          <button style={{ fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: 14, color: 'var(--fg)', border: '1px solid var(--border)', background: 'var(--card)', padding: '11px 18px', borderRadius: 10, cursor: 'pointer' }}>Maybe</button>
+          <button onClick={() => setRsvp('going')} style={btnStyle(rsvp === 'going')}>Going</button>
+          <button onClick={() => setRsvp('maybe')} style={btnStyle(rsvp === 'maybe')}>Maybe</button>
           <button style={{ marginLeft: 'auto', fontFamily: "'JetBrains Mono'", fontSize: 12, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer' }}>↓ Add to calendar (.ics)</button>
         </div>
       </div>

@@ -1,15 +1,25 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const EVENTS = [
-  { day: 'THU', date: '09', title: 'Demo Night', time: '7:00 PM · Cruzio · hosted by StartUp Camp', avatars: ['A', 'K'], extra: '+16', status: 'Going', statusBg: 'var(--primary)' },
-  { day: 'SAT', date: '11', title: 'Beach cleanup + build session', time: '9:00 AM · Its Beach · hosted by mara' },
-  { day: 'WED', date: '15', title: 'Fundraising office hours', time: '4:00 PM · Zoom · hosted by SC Angels' },
+const INITIAL_EVENTS = [
+  { day: 'THU', date: '09', title: 'Demo Night', time: '7:00 PM · Cruzio · hosted by StartUp Camp', avatars: ['A', 'K'], extra: '+16', rsvp: 'going' },
+  { day: 'SAT', date: '11', title: 'Beach cleanup + build session', time: '9:00 AM · Its Beach · hosted by mara', rsvp: null },
+  { day: 'WED', date: '15', title: 'Fundraising office hours', time: '4:00 PM · Zoom · hosted by SC Angels', rsvp: null },
 ];
 
 const AVATAR_COLORS = { A: 'var(--accent)', K: 'var(--success)' };
 
 export default function EventsList() {
   const nav = useNavigate();
+  const [events, setEvents] = useState(INITIAL_EVENTS);
+
+  function toggleRsvp(index, e) {
+    e.stopPropagation();
+    setEvents(prev => prev.map((ev, i) => {
+      if (i !== index) return ev;
+      return { ...ev, rsvp: ev.rsvp === 'going' ? null : 'going' };
+    }));
+  }
 
   return (
     <div style={{ maxWidth: 720, margin: '0 auto', padding: '26px 24px' }}>
@@ -19,8 +29,8 @@ export default function EventsList() {
         <button style={{ marginLeft: 'auto', fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: 13, color: '#fff', background: 'var(--accent)', border: 'none', padding: '9px 16px', borderRadius: 9, cursor: 'pointer' }}>+ New event</button>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {EVENTS.map((ev, i) => (
-          <button key={i} onClick={() => nav('/events/1')} style={{
+        {events.map((ev, i) => (
+          <div key={i} onClick={() => nav('/events/1')} style={{
             textAlign: 'left', background: 'var(--card)', border: '1px solid var(--border)',
             borderRadius: 14, padding: '16px 18px',
             display: 'flex', gap: 16, alignItems: 'center', cursor: 'pointer',
@@ -59,14 +69,14 @@ export default function EventsList() {
                 )}
               </div>
             )}
-            <span style={{
+            <button onClick={(e) => toggleRsvp(i, e)} style={{
               fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: 12,
-              color: ev.statusBg ? '#fff' : 'var(--primary)',
-              background: ev.statusBg || 'transparent',
-              border: ev.statusBg ? 'none' : '1px solid var(--border)',
-              padding: '8px 14px', borderRadius: 8, flexShrink: 0,
-            }}>{ev.status || 'RSVP'}</span>
-          </button>
+              color: ev.rsvp === 'going' ? '#fff' : 'var(--primary)',
+              background: ev.rsvp === 'going' ? 'var(--primary)' : 'transparent',
+              border: ev.rsvp === 'going' ? 'none' : '1px solid var(--border)',
+              padding: '8px 14px', borderRadius: 8, flexShrink: 0, cursor: 'pointer',
+            }}>{ev.rsvp === 'going' ? 'Going' : 'RSVP'}</button>
+          </div>
         ))}
       </div>
     </div>
