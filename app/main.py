@@ -15,6 +15,7 @@ from app.routers import (
     auth,
     channels,
     comments,
+    data,
     events,
     members,
     messages,
@@ -35,7 +36,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="SC Builders — Community API",
     description="Backend-for-Frontend for the Santa Cruz Builders community platform.",
-    version="0.2.0",
+    version="0.4.0",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -63,6 +64,7 @@ app.include_router(notifications.router)
 app.include_router(search.router)
 app.include_router(comments.router)
 app.include_router(members.router)
+app.include_router(data.router)
 
 
 @app.get("/health", tags=["Health"])

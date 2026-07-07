@@ -38,3 +38,18 @@ Derived from `prd.md` — Santa Cruz Builders Community Communications Layer (Ba
 - [x] #15 CI integration smoke tests with instant-db — tests/test_integration_smoke.py (run with RUN_INTEGRATION=1)
 - [x] #17 BDD feature files (pytest-bdd) — 3 features, 13 scenarios in tests/features/ + step defs
 - [x] #20 WebSocket connection developer guide — docs/WS_CONNECTION_GUIDE.md
+
+## Shipped (v0.4.0)
+
+### Lakehouse Integration
+- [x] #21 AINative Lakehouse API integration — Santa Cruz community data
+  - `GET /api/data/tables` — list available SC data collections
+  - `GET /api/data/stats` — row counts and date ranges per collection
+  - `POST /api/data/query` — execute SELECT-only SQL queries
+  - `GET /api/data/businesses` — search SMB directory (~290K records)
+  - `GET /api/data/housing` — Zillow ZHVI housing trends
+  - `GET /api/data/economic` — FRED indicators + Census demographics
+  - `GET /api/data/parcels` — county assessor parcels (~97K records)
+  - `GET /api/data/traffic` — Caltrans AADT traffic counts
+  - `GET /api/data/safety` — crime mapping incidents
+  - 22 tests, 97% router coverage
