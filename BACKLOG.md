@@ -29,11 +29,12 @@ Derived from `prd.md` — Santa Cruz Builders Community Communications Layer (Ba
 - [x] .env.example
 
 ### Test Coverage
-- [x] 136 tests, 96.4% coverage (target 90%)
+- [x] 149 tests, 96.4% coverage (target 90%)
 
-## Remaining (non-code)
+## Shipped (v0.3.0)
 
-- [ ] #1 Stream-as-channel verification spike — manual WS test
-- [ ] #15 CI integration smoke tests with instant-db
-- [ ] #17 BDD feature files (pytest-bdd)
-- [ ] #20 WebSocket connection developer guide
+### Non-code deliverables
+- [x] #1 Stream-as-channel verification spike — see docs/STREAM_CHANNEL_SPIKE_REPORT.md + scripts/verify_stream_chat.py
+- [x] #15 CI integration smoke tests with instant-db — tests/test_integration_smoke.py (run with RUN_INTEGRATION=1)
+- [x] #17 BDD feature files (pytest-bdd) — 3 features, 13 scenarios in tests/features/ + step defs
+- [x] #20 WebSocket connection developer guide — docs/WS_CONNECTION_GUIDE.md
