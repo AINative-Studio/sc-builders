@@ -1,16 +1,43 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { get, post } from '../api';
 
-const ATTENDEES = [
-  { letter: 'A', bg: 'var(--accent)' },
-  { letter: 'K', bg: 'var(--success)' },
-  { letter: 'T', bg: 'var(--primary)' },
-  { letter: 'M', bg: 'hsl(280 40% 55%)' },
+const AVATAR_COLORS = [
+  'var(--accent)', 'var(--success)', 'var(--primary)',
+  'hsl(280 40% 55%)', 'hsl(40 70% 48%)', 'hsl(340 60% 50%)',
 ];
 
 export default function EventDetail() {
   const nav = useNavigate();
-  const [rsvp, setRsvp] = useState('going');
+  const { id } = useParams();
+  const [event, setEvent] = useState(null);
+  const [attendees, setAttendees] = useState([]);
+  const [rsvp, setRsvp] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      get(`/api/events/${id}`).catch(() => null),
+      get(`/api/events/${id}/attendees`).catch(() => ({ items: [] })),
+    ]).then(([ev, att]) => {
+      if (ev) setEvent(ev);
+      setAttendees(att?.items || att?.data || []);
+    }).finally(() => setLoading(false));
+  }, [id]);
+
+  async function handleRsvp(status) {
+    setRsvp(status);
+    try {
+      await post(`/api/events/${id}/rsvp`, { status });
+    } catch {}
+  }
+
+  function formatDate(ev) {
+    if (!ev?.date && !ev?.start_time) return '';
+    const d = new Date(ev.start_time || ev.date);
+    return d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase()
+      + ' · ' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
 
   const btnStyle = (active) => ({
     fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: 14,
@@ -21,6 +48,25 @@ export default function EventDetail() {
     borderRadius: 10, cursor: 'pointer',
   });
 
+  if (loading) {
+    return (
+      <div style={{ maxWidth: 640, margin: '0 auto', padding: 24 }}>
+        <div style={{ padding: 40, textAlign: 'center', color: 'var(--mfg)' }}>Loading...</div>
+      </div>
+    );
+  }
+
+  if (!event) {
+    return (
+      <div style={{ maxWidth: 640, margin: '0 auto', padding: 24 }}>
+        <button onClick={() => nav('/events')} style={{ background: 'none', border: 'none', color: 'var(--mfg)', fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 14, fontFamily: 'Inter' }}>← all events</button>
+        <div style={{ padding: 40, textAlign: 'center', color: 'var(--mfg)' }}>Event not found</div>
+      </div>
+    );
+  }
+
+  const goingCount = event.attendee_count || attendees.length || 0;
+
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', padding: 24 }}>
       <button onClick={() => nav('/events')} style={{ background: 'none', border: 'none', color: 'var(--mfg)', fontSize: 13, cursor: 'pointer', padding: 0, marginBottom: 14, fontFamily: 'Inter' }}>← all events</button>
@@ -30,40 +76,52 @@ export default function EventDetail() {
           background: 'linear-gradient(135deg, hsl(191 84% 28%), hsl(14 78% 52%))',
           display: 'flex', alignItems: 'flex-end', padding: '16px 22px',
         }}>
-          <div style={{ background: 'rgba(0,0,0,.28)', color: '#fff', fontFamily: "'JetBrains Mono'", fontSize: 11, padding: '5px 10px', borderRadius: 7 }}>THU 9 JUL · 7:00 PM</div>
+          <div style={{ background: 'rgba(0,0,0,.28)', color: '#fff', fontFamily: "'JetBrains Mono'", fontSize: 11, padding: '5px 10px', borderRadius: 7 }}>{formatDate(event)}</div>
         </div>
         <div style={{ padding: '22px 24px' }}>
-          <h1 style={{ fontFamily: "'Space Grotesk'", fontWeight: 700, fontSize: 26, letterSpacing: '-.5px', margin: '0 0 6px', color: 'var(--fg)' }}>Demo Night</h1>
-          <div style={{ fontSize: 14, color: 'var(--mfg)', marginBottom: 16 }}>Cruzio Coworking, 877 Cedar St · hosted by <b style={{ color: 'var(--fg)' }}>StartUp Camp</b></div>
-          <p style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--fg)', margin: '0 0 18px' }}>Bring a 3-minute demo of anything you're shipping — code, hardware, a spreadsheet, whatever. Lightning format, friendly crowd, tacos after.</p>
-          <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 10, letterSpacing: '.5px', color: 'var(--mfg)', marginBottom: 10 }}>18 GOING</div>
-          <div style={{ display: 'flex', marginBottom: 20 }}>
-            {ATTENDEES.map((a, i) => (
-              <span key={i} style={{
-                width: 32, height: 32, borderRadius: '50%',
-                background: a.bg, color: '#fff',
-                fontSize: 12, fontWeight: 600,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontFamily: "'Space Grotesk'",
-                border: '2px solid var(--card)',
-                marginLeft: i > 0 ? -8 : 0,
-              }}>{a.letter}</span>
-            ))}
-            <span style={{
-              width: 32, height: 32, borderRadius: '50%',
-              background: 'var(--muted)', color: 'var(--mfg)',
-              fontSize: 10, fontWeight: 600,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontFamily: "'JetBrains Mono'",
-              border: '2px solid var(--card)',
-              marginLeft: -8,
-            }}>+14</span>
+          <h1 style={{ fontFamily: "'Space Grotesk'", fontWeight: 700, fontSize: 26, letterSpacing: '-.5px', margin: '0 0 6px', color: 'var(--fg)' }}>{event.title || event.name}</h1>
+          <div style={{ fontSize: 14, color: 'var(--mfg)', marginBottom: 16 }}>
+            {event.location && <>{event.location} · </>}
+            {(event.host || event.hosted_by) && <>hosted by <b style={{ color: 'var(--fg)' }}>{event.host || event.hosted_by}</b></>}
           </div>
+          {event.description && (
+            <p style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--fg)', margin: '0 0 18px' }}>{event.description}</p>
+          )}
+          <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 10, letterSpacing: '.5px', color: 'var(--mfg)', marginBottom: 10 }}>{goingCount} GOING</div>
+          {attendees.length > 0 && (
+            <div style={{ display: 'flex', marginBottom: 20 }}>
+              {attendees.slice(0, 5).map((a, i) => {
+                const name = a.display_name || a.name || a.user_id || '';
+                const letter = name.charAt(0).toUpperCase() || '?';
+                return (
+                  <span key={i} style={{
+                    width: 32, height: 32, borderRadius: '50%',
+                    background: AVATAR_COLORS[i % AVATAR_COLORS.length], color: '#fff',
+                    fontSize: 12, fontWeight: 600,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: "'Space Grotesk'",
+                    border: '2px solid var(--card)',
+                    marginLeft: i > 0 ? -8 : 0,
+                  }}>{letter}</span>
+                );
+              })}
+              {goingCount > 5 && (
+                <span style={{
+                  width: 32, height: 32, borderRadius: '50%',
+                  background: 'var(--muted)', color: 'var(--mfg)',
+                  fontSize: 10, fontWeight: 600,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontFamily: "'JetBrains Mono'",
+                  border: '2px solid var(--card)',
+                  marginLeft: -8,
+                }}>+{goingCount - 5}</span>
+              )}
+            </div>
+          )}
         </div>
         <div style={{ padding: '14px 24px 18px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center' }}>
-          <button onClick={() => setRsvp('going')} style={btnStyle(rsvp === 'going')}>Going</button>
-          <button onClick={() => setRsvp('maybe')} style={btnStyle(rsvp === 'maybe')}>Maybe</button>
-          <button style={{ marginLeft: 'auto', fontFamily: "'JetBrains Mono'", fontSize: 12, color: 'var(--primary)', background: 'none', border: 'none', cursor: 'pointer' }}>↓ Add to calendar (.ics)</button>
+          <button onClick={() => handleRsvp('going')} style={btnStyle(rsvp === 'going')}>Going</button>
+          <button onClick={() => handleRsvp('maybe')} style={btnStyle(rsvp === 'maybe')}>Maybe</button>
         </div>
       </div>
     </div>

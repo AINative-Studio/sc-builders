@@ -1,14 +1,23 @@
 import { useState, useEffect } from 'react';
+import { get } from '../api';
 
-export default function TopBar({ onOpenPalette, onOpenNotif }) {
-  const [presence, setPresence] = useState(42);
+export default function TopBar({ onOpenPalette, onOpenNotif, notifCount }) {
+  const [presence, setPresence] = useState(0);
 
   useEffect(() => {
+    get('/ws/stats')
+      .then(res => setPresence(res.active_connections || res.online || 0))
+      .catch(() => setPresence(0));
+
     const id = setInterval(() => {
-      setPresence(p => Math.min(48, Math.max(37, p + (Math.random() < 0.5 ? -1 : 1))));
-    }, 3200);
+      get('/ws/stats')
+        .then(res => setPresence(res.active_connections || res.online || 0))
+        .catch(() => {});
+    }, 30000);
     return () => clearInterval(id);
   }, []);
+
+  const count = notifCount ?? 0;
 
   return (
     <div style={{
@@ -38,7 +47,7 @@ export default function TopBar({ onOpenPalette, onOpenNotif }) {
         }}
       >
         <span style={{ color: 'var(--mfg)', fontSize: 14 }}>⌕</span>
-        <span style={{ flex: 1, fontSize: 13, color: 'var(--mfg)' }}>Search or ask the community…</span>
+        <span style={{ flex: 1, fontSize: 13, color: 'var(--mfg)' }}>Search or ask the community...</span>
         <span style={{
           fontFamily: "'JetBrains Mono'",
           fontSize: '10.5px',
@@ -58,8 +67,8 @@ export default function TopBar({ onOpenPalette, onOpenNotif }) {
         fontSize: '11.5px',
         color: 'var(--mfg)',
       }}>
-        <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--success)' }} />
-        {presence} online
+        <span style={{ width: 7, height: 7, borderRadius: '50%', background: presence > 0 ? 'var(--success)' : 'var(--mfg)' }} />
+        {presence > 0 ? `${presence} online` : 'offline'}
       </div>
 
       <button
@@ -75,19 +84,21 @@ export default function TopBar({ onOpenPalette, onOpenNotif }) {
         }}
       >
         🔔
-        <span style={{
-          position: 'absolute',
-          top: 6, right: 6,
-          minWidth: 15, height: 15,
-          background: 'var(--accent)',
-          color: '#fff',
-          fontFamily: "'JetBrains Mono'",
-          fontSize: 9,
-          fontWeight: 600,
-          borderRadius: 8,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: '0 3px',
-        }}>3</span>
+        {count > 0 && (
+          <span style={{
+            position: 'absolute',
+            top: 6, right: 6,
+            minWidth: 15, height: 15,
+            background: 'var(--accent)',
+            color: '#fff',
+            fontFamily: "'JetBrains Mono'",
+            fontSize: 9,
+            fontWeight: 600,
+            borderRadius: 8,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '0 3px',
+          }}>{count > 99 ? '99+' : count}</span>
+        )}
       </button>
     </div>
   );

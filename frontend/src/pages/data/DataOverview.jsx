@@ -1,16 +1,32 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { get } from '../../api';
 
 const DATASETS = [
-  { path: 'businesses', name: 'Businesses', endpoint: 'GET /api/data/businesses', rows: '290,412', extra: '48 MB' },
-  { path: 'housing', name: 'Housing', endpoint: 'GET /api/data/housing', rows: '1,204', extra: 'Zillow ZHVI · 2015–26' },
-  { path: 'economic', name: 'Economic', endpoint: 'GET /api/data/economic', rows: '3,120', extra: 'FRED series' },
-  { path: 'parcels', name: 'Parcels', endpoint: 'GET /api/data/parcels', rows: '97,338', extra: '62 MB' },
-  { path: 'traffic', name: 'Traffic', endpoint: 'GET /api/data/traffic', rows: '8,940', extra: 'Caltrans' },
-  { path: 'safety', name: 'Safety', endpoint: 'GET /api/data/safety', rows: '42,507', extra: 'incidents' },
+  { path: 'businesses', name: 'Businesses', endpoint: 'GET /api/data/businesses', fallbackRows: '—', extra: 'SC County' },
+  { path: 'housing', name: 'Housing', endpoint: 'GET /api/data/housing', fallbackRows: '—', extra: 'Zillow ZHVI' },
+  { path: 'economic', name: 'Economic', endpoint: 'GET /api/data/economic', fallbackRows: '—', extra: 'FRED series' },
+  { path: 'parcels', name: 'Parcels', endpoint: 'GET /api/data/parcels', fallbackRows: '—', extra: 'county data' },
+  { path: 'traffic', name: 'Traffic', endpoint: 'GET /api/data/traffic', fallbackRows: '—', extra: 'Caltrans' },
+  { path: 'safety', name: 'Safety', endpoint: 'GET /api/data/safety', fallbackRows: '—', extra: 'incidents' },
 ];
 
 export default function DataOverview() {
   const nav = useNavigate();
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    get('/api/data/stats')
+      .then(setStats)
+      .catch(() => {});
+  }, []);
+
+  function getRowCount(dataset) {
+    if (!stats?.tables) return dataset.fallbackRows;
+    const match = stats.tables.find(t => t.name?.toLowerCase().includes(dataset.path));
+    if (match?.file_count) return match.file_count.toLocaleString();
+    return dataset.fallbackRows;
+  }
 
   return (
     <div style={{ maxWidth: 900, padding: '26px 30px' }}>
@@ -19,6 +35,17 @@ export default function DataOverview() {
       <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--mfg)', background: 'var(--muted)', display: 'inline-block', padding: '5px 10px', borderRadius: 7, marginBottom: 22 }}>
         https://sc-builders.ainative.studio/api/data
       </div>
+
+      {stats && (
+        <div style={{ display: 'flex', gap: 14, marginBottom: 18 }}>
+          <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--mfg)' }}>
+            <b style={{ color: 'var(--fg)' }}>{stats.total_files?.toLocaleString() || '—'}</b> files
+          </div>
+          <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--mfg)' }}>
+            <b style={{ color: 'var(--fg)' }}>{stats.total_bytes ? `${(stats.total_bytes / 1048576).toFixed(0)} MB` : '—'}</b> total
+          </div>
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
         {DATASETS.map(d => (
@@ -36,7 +63,7 @@ export default function DataOverview() {
             </div>
             <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--primary)', marginBottom: 10 }}>{d.endpoint}</div>
             <div style={{ display: 'flex', gap: 14, fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--mfg)' }}>
-              <span><b style={{ color: 'var(--fg)' }}>{d.rows}</b> rows</span>
+              <span><b style={{ color: 'var(--fg)' }}>{getRowCount(d)}</b> rows</span>
               <span>{d.extra}</span>
             </div>
           </button>

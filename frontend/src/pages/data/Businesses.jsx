@@ -31,7 +31,7 @@ export default function Businesses() {
     <div style={{ maxWidth: 920, padding: '26px 30px' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 4 }}>
         <h1 style={{ fontFamily: "'Space Grotesk'", fontWeight: 700, fontSize: 24, letterSpacing: '-.5px', margin: 0, color: 'var(--fg)', whiteSpace: 'nowrap' }}>Business Directory</h1>
-        <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--mfg)', whiteSpace: 'nowrap' }}>290,412 SMBs</span>
+        <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--mfg)', whiteSpace: 'nowrap' }}>{data?.row_count != null ? `${data.row_count.toLocaleString()} SMBs` : 'SC County'}</span>
       </div>
       <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--primary)', marginBottom: 16 }}>GET /api/data/businesses?q=&city=&category=</div>
 

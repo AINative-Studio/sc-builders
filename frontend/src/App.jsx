@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from './auth';
+import { get } from './api';
 import Rail from './components/Rail';
 import TopBar from './components/TopBar';
 import NotificationSheet from './components/NotificationSheet';
@@ -29,6 +30,16 @@ import SqlPlayground from './pages/data/SqlPlayground';
 function Shell() {
   const [showPalette, setShowPalette] = useState(false);
   const [showNotif, setShowNotif] = useState(false);
+  const [notifCount, setNotifCount] = useState(0);
+
+  useEffect(() => {
+    get('/api/notifications?limit=50')
+      .then(res => {
+        const items = res.events || res.items || res.data || [];
+        setNotifCount(items.length);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleKeyDown = useCallback((e) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -46,12 +57,12 @@ function Shell() {
     <div style={{ display: 'grid', gridTemplateColumns: '66px 1fr', height: '100vh', overflow: 'hidden' }}>
       <Rail />
       <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <TopBar onOpenPalette={() => setShowPalette(true)} onOpenNotif={() => setShowNotif(v => !v)} />
+        <TopBar onOpenPalette={() => setShowPalette(true)} onOpenNotif={() => setShowNotif(v => !v)} notifCount={notifCount} />
         <div style={{ flex: 1, overflow: 'auto', background: 'var(--bg)' }}>
           <Outlet />
         </div>
       </div>
-      {showNotif && <NotificationSheet onClose={() => setShowNotif(false)} />}
+      {showNotif && <NotificationSheet onClose={() => setShowNotif(false)} onCountChange={setNotifCount} />}
       {showPalette && <CommandPalette onClose={() => setShowPalette(false)} />}
     </div>
   );
