@@ -28,11 +28,14 @@ class TestFollow:
 class TestFriendRequest:
     def test_send_friend_request(self, client, mock_api):
         stub_auth_me(mock_api)
-        mock_api.post("/api/v1/social/friend-request/user-002").mock(
+        route = mock_api.post("/api/v1/social/friend-request/user-002").mock(
             return_value=httpx.Response(200, json={"ok": True})
         )
         r = client.post("/api/social/friend-request/user-002", headers=AUTH_HEADER)
         assert r.status_code == 200
+        # Upstream requires a JSON body (FriendRequestCreate); we must forward one
+        # even when empty, otherwise upstream returns 422.
+        assert route.calls.last.request.content == b"{}"
 
     def test_accept_friend_request(self, client, mock_api):
         stub_auth_me(mock_api)
