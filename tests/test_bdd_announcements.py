@@ -92,7 +92,7 @@ def when_create(bdd_client, bdd_mock, ctx, title, body):
         return_value=httpx.Response(200, json={"ok": True})
     )
     vector_route = bdd_mock.post(
-        f"/api/v1/projects/{settings.project_id}/vectors/announcements"
+        f"/api/v1/projects/{settings.project_id}/embeddings/embed-and-store"
     ).mock(return_value=httpx.Response(200, json={"ok": True}))
     ctx["response"] = bdd_client.post(
         "/api/announcements",

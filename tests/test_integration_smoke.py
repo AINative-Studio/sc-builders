@@ -132,29 +132,27 @@ class TestEventEmission:
         assert len(events) >= 1
 
 
-class TestVectorSearch:
-    """Smoke test: upsert vector + semantic search."""
+class TestEmbeddingSearch:
+    """Smoke test: embed-and-store + semantic search."""
 
-    COLLECTION = f"smoke_vectors_{uuid.uuid4().hex[:6]}"
-
-    def test_upsert_and_search(self, db_client):
+    def test_embed_and_search(self, db_client):
         c, pid = db_client
 
         r = c.post(
-            f"/api/v1/projects/{pid}/vectors/{self.COLLECTION}",
+            f"/api/v1/projects/{pid}/embeddings/embed-and-store",
             json={
-                "id": "vec-1",
-                "content": "Santa Cruz builders meetup about Rust and WebAssembly",
-                "metadata": {"type": "announcement"},
+                "text": "Santa Cruz builders meetup about Rust and WebAssembly",
+                "collection": "smoke_test",
+                "model": "bge-m3",
             },
         )
         if r.status_code == 404:
-            pytest.skip("Vectors API not available")
-        assert r.status_code in (200, 201), f"Upsert: {r.text}"
+            pytest.skip("Embeddings API not available")
+        assert r.status_code in (200, 201), f"Embed: {r.text}"
 
         r2 = c.post(
-            f"/api/v1/projects/{pid}/vectors/{self.COLLECTION}/search",
-            json={"query": "Rust meetup", "limit": 5},
+            f"/api/v1/projects/{pid}/embeddings/search",
+            json={"query": "Rust meetup", "collection": "smoke_test", "limit": 5},
         )
         assert r2.status_code == 200
         results = r2.json().get("results", [])

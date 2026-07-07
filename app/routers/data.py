@@ -23,6 +23,15 @@ router = APIRouter(prefix="/api/data", tags=["Community Data"])
 
 _LAKE = f"/api/v1/projects/{settings.project_id}/database/lakehouse"
 
+SC_COUNTY_CITIES = [
+    "Santa Cruz", "Capitola", "Watsonville", "Scotts Valley",
+    "Aptos", "Soquel", "Ben Lomond", "Felton", "Boulder Creek",
+    "Davenport", "La Selva Beach", "Live Oak", "Bonny Doon",
+    "Mount Hermon", "Rio Del Mar", "Freedom", "Corralitos", "Brookdale",
+]
+
+_SC_CITY_SQL = " OR ".join(f"city ILIKE '{c}'" for c in SC_COUNTY_CITIES)
+
 _SMB_PATH = "s3://ainative-lakehouse/raw/business/smb_businesses/date=*/data.parquet"
 _HOUSING_PATH = "s3://ainative-lakehouse/raw/external/scc/zillow_zhvi/date=*/data.parquet"
 _FRED_PATH = "s3://ainative-lakehouse/raw/external/scc/fred_indicators/date=*/data.parquet"
@@ -55,12 +64,12 @@ async def query_lakehouse(
 @router.get("/businesses")
 async def list_businesses(
     q: str | None = Query(None, description="Search business name"),
-    city: str | None = Query(None, description="Filter by city"),
+    city: str | None = Query(None, description="Filter by SC county city"),
     category: str | None = Query(None, description="Filter by industry category"),
     limit: int = Query(50, ge=1, le=1000),
     token: str = Depends(get_token),
 ):
-    conditions = []
+    conditions = [f"({_SC_CITY_SQL})"]
     if q:
         safe_q = q.replace("'", "''")
         conditions.append(f"business_name ILIKE '%{safe_q}%'")
@@ -71,7 +80,7 @@ async def list_businesses(
         safe_cat = category.replace("'", "''")
         conditions.append(f"category ILIKE '%{safe_cat}%'")
 
-    where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
+    where = f" WHERE {' AND '.join(conditions)}"
     sql = (
         f"SELECT business_name, dba, category, naics, address, city, state, zip, "
         f"phone, business_type, is_tech "

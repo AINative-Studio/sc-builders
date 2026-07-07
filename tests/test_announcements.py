@@ -29,7 +29,7 @@ class TestCreateAnnouncement:
         mock_api.post("/api/v1/public/zerodb/events").mock(
             return_value=httpx.Response(200, json={"ok": True})
         )
-        mock_api.post(f"/api/v1/projects/{settings.project_id}/vectors/announcements").mock(
+        mock_api.post(f"/api/v1/projects/{settings.project_id}/embeddings/embed-and-store").mock(
             return_value=httpx.Response(200, json={"ok": True})
         )
         r = client.post(
@@ -70,7 +70,7 @@ class TestCreateAnnouncement:
         event_route = mock_api.post("/api/v1/public/zerodb/events").mock(
             return_value=httpx.Response(200, json={"ok": True})
         )
-        mock_api.post(f"/api/v1/projects/{settings.project_id}/vectors/announcements").mock(
+        mock_api.post(f"/api/v1/projects/{settings.project_id}/embeddings/embed-and-store").mock(
             return_value=httpx.Response(200, json={"ok": True})
         )
         client.post(

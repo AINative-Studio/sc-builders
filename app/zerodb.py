@@ -71,32 +71,33 @@ async def emit_event(event_type: str, data: dict, *, correlation_id: str | None 
     return r.json()
 
 
-async def upsert_vector(
-    collection: str,
-    doc_id: str,
+async def embed_and_store(
     text: str,
-    metadata: dict | None = None,
     *,
+    collection: str = "default",
+    source: str | None = None,
+    model: str = "bge-m3",
     bearer_token: str | None = None,
 ) -> dict:
-    path = f"/api/v1/projects/{settings.project_id}/vectors/{collection}"
-    body: dict = {"id": doc_id, "text": text}
-    if metadata:
-        body["metadata"] = metadata
+    path = f"/api/v1/projects/{settings.project_id}/embeddings/embed-and-store"
+    body: dict = {"text": text, "collection": collection, "model": model}
+    if source:
+        body["source"] = source
     r = await api_request("POST", path, json=body, bearer_token=bearer_token)
     r.raise_for_status()
     return r.json()
 
 
-async def search_vectors(
-    collection: str,
+async def search_embeddings(
     query: str,
     *,
+    collection: str = "default",
     limit: int = 10,
+    model: str = "bge-m3",
     bearer_token: str | None = None,
 ) -> dict:
-    path = f"/api/v1/projects/{settings.project_id}/vectors/{collection}/search"
-    body: dict = {"query": query, "limit": limit}
+    path = f"/api/v1/projects/{settings.project_id}/embeddings/search"
+    body: dict = {"query": query, "collection": collection, "limit": limit, "model": model}
     r = await api_request("POST", path, json=body, bearer_token=bearer_token)
     r.raise_for_status()
     return r.json()

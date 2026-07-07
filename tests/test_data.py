@@ -143,6 +143,19 @@ class TestDataBusinesses:
         assert "rows" in body
         assert body["row_count"] == 1
 
+    def test_list_businesses_sc_filter_applied(self, client, mock_api):
+        route = mock_api.post(f"{LAKE_BASE}/query").mock(
+            return_value=httpx.Response(200, json={
+                "columns": ["business_name"], "rows": [],
+                "row_count": 0, "execution_time_ms": 10.0, "truncated": False,
+            })
+        )
+        client.get("/api/data/businesses", headers=AUTH_HEADER)
+        sent_sql = route.calls[0].request.content.decode()
+        assert "Santa Cruz" in sent_sql
+        assert "Capitola" in sent_sql
+        assert "Watsonville" in sent_sql
+
     def test_list_businesses_with_filters(self, client, mock_api):
         mock_api.post(f"{LAKE_BASE}/query").mock(
             return_value=httpx.Response(200, json={

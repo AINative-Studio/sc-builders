@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.deps import current_user, require_organizer
 from app.models import AnnouncementCreate, AnnouncementUpdate
 from app.pagination import paginate
-from app.zerodb import emit_event, insert_row, query_rows, update_row, upsert_vector
+from app.zerodb import embed_and_store, emit_event, insert_row, query_rows, update_row
 
 router = APIRouter(tags=["Announcements"])
 
@@ -39,11 +39,10 @@ async def create_announcement(
     ann_id = result.get("id") or result.get("_id", "")
     if ann_id:
         try:
-            await upsert_vector(
-                "announcements",
-                str(ann_id),
+            await embed_and_store(
                 f"{body.title}\n{body.body}",
-                metadata={"channel_slug": body.channel_slug, "author_id": row["author_id"]},
+                collection="announcements",
+                source=f"announcement:{ann_id}",
             )
         except Exception:
             pass
