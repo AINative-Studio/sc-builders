@@ -1,0 +1,58 @@
+from fastapi import APIRouter, Depends
+
+from app.deps import current_user, get_token
+from app.models import (
+    ForgotPasswordRequest,
+    LoginRequest,
+    OAuthCallbackRequest,
+    RefreshRequest,
+    RegisterRequest,
+    ResetPasswordRequest,
+)
+from app.proxy import forward
+
+router = APIRouter(prefix="/api/auth", tags=["Auth"])
+
+
+@router.post("/register")
+async def register(body: RegisterRequest):
+    return await forward("POST", "/v1/auth/register", json=body.model_dump())
+
+
+@router.post("/login")
+async def login(body: LoginRequest):
+    return await forward("POST", "/v1/auth/login", json=body.model_dump())
+
+
+@router.post("/refresh")
+async def refresh(body: RefreshRequest):
+    return await forward("POST", "/v1/auth/refresh", json=body.model_dump())
+
+
+@router.get("/me")
+async def me(token: str = Depends(get_token)):
+    return await forward("GET", "/v1/auth/me", bearer_token=token)
+
+
+@router.post("/logout")
+async def logout(token: str = Depends(get_token)):
+    return await forward("POST", "/v1/auth/logout", bearer_token=token)
+
+
+@router.post("/oauth/{provider}/callback")
+async def oauth_callback(provider: str, body: OAuthCallbackRequest):
+    return await forward(
+        "POST",
+        f"/v1/auth/{provider}/callback",
+        json=body.model_dump(),
+    )
+
+
+@router.post("/forgot-password")
+async def forgot_password(body: ForgotPasswordRequest):
+    return await forward("POST", "/v1/auth/forgot-password", json=body.model_dump())
+
+
+@router.post("/reset-password")
+async def reset_password(body: ResetPasswordRequest):
+    return await forward("POST", "/v1/auth/reset-password", json=body.model_dump())
