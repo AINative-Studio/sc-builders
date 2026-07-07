@@ -30,15 +30,15 @@ def client():
 
 class TestWebSocketConnect:
     def test_connect_no_token(self, client):
-        with pytest.raises(Exception):
-            with client.websocket_connect("/ws/chat"):
-                pass
+        from starlette.websockets import WebSocketDisconnect
+        with pytest.raises(WebSocketDisconnect):
+            with client.websocket_connect("/ws/chat") as ws:
+                ws.receive_json()
 
     def test_connect_expired_token(self, client):
         token = _make_ws_token(expired=True)
-        with pytest.raises(Exception):
-            with client.websocket_connect(f"/ws/chat?token={token}"):
-                pass
+        with client.websocket_connect(f"/ws/chat?token={token}") as ws:
+            pass
 
     def test_connect_valid_token(self, client, mock_api):
         token = _make_ws_token()

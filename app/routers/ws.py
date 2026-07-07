@@ -20,8 +20,7 @@ class ConnectionManager:
     def __init__(self):
         self._channels: dict[str, list[WebSocket]] = {}
 
-    async def connect(self, channel: str, ws: WebSocket):
-        await ws.accept()
+    def add(self, channel: str, ws: WebSocket):
         self._channels.setdefault(channel, []).append(ws)
 
     def disconnect(self, channel: str, ws: WebSocket):
@@ -56,7 +55,11 @@ def _verify_ws_token(token: str) -> dict | None:
 
 
 @router.websocket("/ws/chat")
-async def community_chat_ws(websocket: WebSocket, token: str | None = None):
+async def community_chat_ws(websocket: WebSocket):
+    token = websocket.query_params.get("token")
+
+    await websocket.accept()
+
     if not token:
         await websocket.close(code=4001, reason="Missing token")
         return
@@ -72,7 +75,7 @@ async def community_chat_ws(websocket: WebSocket, token: str | None = None):
         await websocket.close(code=4002, reason="Token missing channel_slug")
         return
 
-    await manager.connect(channel_slug, websocket)
+    manager.add(channel_slug, websocket)
     logger.info("WS connected: user=%s channel=%s", user_id, channel_slug)
 
     try:
