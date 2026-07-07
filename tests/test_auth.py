@@ -12,6 +12,7 @@ class TestRegister:
         r = client.post("/api/auth/register", json={"email": "new@example.com", "password": "Secret1!"})
         assert r.status_code == 200
         assert r.json()["email"] == "new@example.com"
+        assert r.json()["tenant"] == "santa-cruz-builders"
 
     def test_register_upstream_409(self, client, mock_api):
         mock_api.post("/v1/auth/register").mock(
@@ -24,6 +25,14 @@ class TestRegister:
         r = client.post("/api/auth/register", json={})
         assert r.status_code == 422
 
+    def test_register_sends_tenant(self, client, mock_api):
+        route = mock_api.post("/v1/auth/register").mock(
+            return_value=httpx.Response(200, json={"id": "u"})
+        )
+        client.post("/api/auth/register", json={"email": "a@b.com", "password": "pw"})
+        sent = route.calls[0].request.content
+        assert b"santa-cruz-builders" in sent
+
 
 class TestLogin:
     def test_login_success(self, client, mock_api):
@@ -33,6 +42,7 @@ class TestLogin:
         r = client.post("/api/auth/login", json={"email": "a@b.com", "password": "pw"})
         assert r.status_code == 200
         assert "access_token" in r.json()
+        assert r.json()["tenant"] == "santa-cruz-builders"
 
     def test_login_bad_creds(self, client, mock_api):
         mock_api.post("/v1/auth/login").mock(
@@ -50,6 +60,7 @@ class TestMe:
         r = client.get("/api/auth/me", headers=AUTH_HEADER)
         assert r.status_code == 200
         assert r.json()["id"] == FAKE_USER["id"]
+        assert r.json()["tenant"] == "santa-cruz-builders"
 
     def test_me_no_token(self, client, mock_api):
         r = client.get("/api/auth/me")
@@ -82,6 +93,15 @@ class TestOAuth:
         )
         r = client.post("/api/auth/oauth/github/callback", json={"code": "abc123"})
         assert r.status_code == 200
+        assert r.json()["tenant"] == "santa-cruz-builders"
+
+    def test_oauth_callback_sends_tenant(self, client, mock_api):
+        route = mock_api.post("/v1/auth/github/callback").mock(
+            return_value=httpx.Response(200, json={"access_token": "gh-tok"})
+        )
+        client.post("/api/auth/oauth/github/callback", json={"code": "abc"})
+        sent = route.calls[0].request.content
+        assert b"santa-cruz-builders" in sent
 
     def test_oauth_callback_missing_code(self, client, mock_api):
         r = client.post("/api/auth/oauth/github/callback", json={})

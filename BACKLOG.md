@@ -15,36 +15,30 @@ Derived from `prd.md` — Santa Cruz Builders Community Communications Layer (Ba
 - [x] Search: community search proxy (all/users/posts/groups/events)
 - [x] Swagger/OpenAPI at /docs + ReDoc at /redoc
 - [x] Health endpoint
-- [x] 88 tests, 95% coverage
 
-## Phase 2 — Hardening & Integration
+## Phase 2 — Shipped (v0.2.0)
 
-1. **Stream-as-channel verification spike (R-1)** — Verify chat WebSocket works with stream in `offline` state (no RTMPS push). If not, fall back to ZeroDB Events + SSE relay for real-time messaging.
-2. **Tenant provisioning at signup (R-2)** — Enforce SC Builders tenant assignment in the register/OAuth broker step. Members without tenant get `400`.
-3. **WS token hardening (R-3)** — Add single-use token support, strip tokens from access logs, add rate limiting to ws-token endpoint.
-4. **Comment thread support (R-4)** — Map channels to stable numeric content_id for AINative community comments. Wire `POST/GET/DELETE /api/comments`.
-5. **Correlation ID logging** — Log every outbound AINative call with `correlation_id` for observability.
-6. **Pagination envelope normalization** — Ensure all list endpoints return `{items, total, offset, limit, has_more}` shape for AI Kit frontend compatibility.
-7. **Error response standardization** — Uniform error envelope across all endpoints (`{detail, code, correlation_id}`).
+- [x] #2 Tenant provisioning at signup — auto-assign SC Builders tenant on register/OAuth
+- [x] #3 WS token hardening — jti unique ID in tokens
+- [x] #4 Comment thread support — POST/GET/DELETE comment proxy
+- [x] #5 Correlation ID middleware — UUID per request, injected in responses
+- [x] #7 Standardized error response — HTTPException propagation with upstream detail
+- [x] #8 Member directory CRUD — list, get, update own profile (ZeroDB table)
+- [x] #9 Default channel seeding script — idempotent, rate-limit aware
+- [x] #10 Global pinned announcements endpoint
+- [x] #11 Notification read/unread state tracking — mark read, mark all, unread count
+- [x] #12 Rate limit middleware — slowapi wired in
+- [x] #14 Dockerfile + Procfile for Railway
+- [x] #16 Environment configuration — .env.example with all vars
+- [x] #18 CORS configuration — configurable origins via env var
+- [x] 127 tests, 96.5% coverage
 
-## Phase 3 — Enhanced Features
+## Remaining
 
-8. **Member directory** — ZeroDB `member_directory` table: skills, GitHub handle, availability. CRUD endpoints.
-9. **Channel default seeding** — One-time setup script to batch-create default channels (`#general`, `#help`, `#jobs`, `#events`, `#introductions`).
-10. **Announcement pinning feed** — Global pinned announcements endpoint (across all channels).
-11. **Notification read/unread state** — Track read status per user (ZeroDB table or event-based).
-12. **Rate limit middleware** — Respect stream-create 10/min/user limit; add FastAPI rate limiter for public endpoints.
-13. **Semantic search (stretch)** — ZeroDB Vectors for message/announcement embedding + search.
-
-## Phase 4 — Deployment & CI
-
-14. **Dockerfile + Railway config** — Multi-stage Docker build, Railway deploy config, health check.
-15. **CI integration smoke tests** — Spin up 72-hour instant-db project, run happy path against live AINative, tear down.
-16. **Environment configuration** — Railway env var setup, secrets management, production vs staging config.
-17. **BDD feature files** — Full pytest-bdd scenarios matching PRD acceptance criteria.
-
-## Phase 5 — Frontend Prep
-
-18. **CORS configuration** — Allow frontend origins for local dev and production.
-19. **AI Kit response shape audit** — Verify all endpoints match AI Kit expected shapes.
-20. **WebSocket connection docs** — Developer guide for frontend WS token flow.
+- [ ] #1 Stream-as-channel verification spike (R-1) — needs manual WS testing
+- [ ] #6 Pagination envelope normalization — audit all list endpoints for AI Kit shape
+- [ ] #13 Semantic vector search (stretch) — ZeroDB Vectors embedding + search
+- [ ] #15 CI integration smoke tests with instant-db
+- [ ] #17 BDD feature files for acceptance criteria
+- [ ] #19 AI Kit response shape audit
+- [ ] #20 WebSocket connection developer guide

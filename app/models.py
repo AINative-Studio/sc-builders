@@ -81,3 +81,22 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str
+
+
+class CommentCreate(BaseModel):
+    content: str = Field(..., min_length=1, max_length=2000)
+    content_type: str = Field(..., pattern=r"^(channel|event|announcement)$")
+    content_id: str
+
+
+class MemberProfileUpdate(BaseModel):
+    display_name: str | None = Field(default=None, max_length=128)
+    skills: list[str] | None = None
+    github: str | None = Field(default=None, max_length=64)
+    availability: str | None = Field(
+        default=None, pattern=r"^(open_to_collab|busy|looking_for_work|hiring)$"
+    )
+
+
+class NotificationMarkRead(BaseModel):
+    event_ids: list[str]

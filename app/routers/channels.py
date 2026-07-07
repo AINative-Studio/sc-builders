@@ -2,12 +2,12 @@ import time
 import uuid
 
 import jwt
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.config import settings
 from app.deps import current_user, require_organizer
 from app.models import ChannelCreate, ChannelUpdate
-from app.zerodb import insert_row, query_rows, update_row
+from app.zerodb import emit_event, insert_row, query_rows, update_row
 
 router = APIRouter(prefix="/api/channels", tags=["Channels"])
 
@@ -37,6 +37,11 @@ async def create_channel(body: ChannelCreate, user: dict = Depends(require_organ
         "archived": False,
     }
     result = await insert_row(TABLE, row)
+
+    await emit_event(
+        "community.channel.created",
+        {"slug": body.slug, "name": body.name, "created_by": row["created_by"]},
+    )
     return result
 
 
@@ -89,6 +94,7 @@ async def mint_ws_token(slug: str, user: dict = Depends(current_user)):
     channel = rows[0]
     now = int(time.time())
     payload = {
+        "jti": str(uuid.uuid4()),
         "sub": str(user.get("id", "")),
         "channel_slug": slug,
         "stream_id": channel.get("stream_id", ""),

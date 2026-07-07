@@ -37,6 +37,17 @@ async def create_announcement(
     return result
 
 
+@router.get("/api/announcements/pinned")
+async def list_pinned_announcements(limit: int = 50, skip: int = 0):
+    return await query_rows(
+        TABLE,
+        filters={"pinned": {"$eq": True}},
+        sort={"published_at": -1},
+        limit=limit,
+        skip=skip,
+    )
+
+
 @router.get("/api/channels/{slug}/announcements")
 async def list_announcements(slug: str, limit: int = 50, skip: int = 0):
     return await query_rows(

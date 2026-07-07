@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
+from app.config import settings
 from app.deps import current_user, get_token
 from app.models import (
     ForgotPasswordRequest,
@@ -14,14 +15,24 @@ from app.proxy import forward
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
 
+async def _assign_tenant(result: dict) -> dict:
+    if isinstance(result, dict):
+        result["tenant"] = settings.tenant_name
+    return result
+
+
 @router.post("/register")
 async def register(body: RegisterRequest):
-    return await forward("POST", "/v1/auth/register", json=body.model_dump())
+    payload = body.model_dump()
+    payload["tenant"] = settings.tenant_name
+    result = await forward("POST", "/v1/auth/register", json=payload)
+    return await _assign_tenant(result)
 
 
 @router.post("/login")
 async def login(body: LoginRequest):
-    return await forward("POST", "/v1/auth/login", json=body.model_dump())
+    result = await forward("POST", "/v1/auth/login", json=body.model_dump())
+    return await _assign_tenant(result)
 
 
 @router.post("/refresh")
@@ -31,7 +42,8 @@ async def refresh(body: RefreshRequest):
 
 @router.get("/me")
 async def me(token: str = Depends(get_token)):
-    return await forward("GET", "/v1/auth/me", bearer_token=token)
+    result = await forward("GET", "/v1/auth/me", bearer_token=token)
+    return await _assign_tenant(result)
 
 
 @router.post("/logout")
@@ -41,11 +53,14 @@ async def logout(token: str = Depends(get_token)):
 
 @router.post("/oauth/{provider}/callback")
 async def oauth_callback(provider: str, body: OAuthCallbackRequest):
-    return await forward(
+    payload = body.model_dump()
+    payload["tenant"] = settings.tenant_name
+    result = await forward(
         "POST",
         f"/v1/auth/{provider}/callback",
-        json=body.model_dump(),
+        json=payload,
     )
+    return await _assign_tenant(result)
 
 
 @router.post("/forgot-password")

@@ -28,6 +28,9 @@ class TestCreateChannel:
         mock_api.post(f"{_table_prefix()}/rows").mock(
             return_value=httpx.Response(200, json=CHANNEL_ROW)
         )
+        mock_api.post("/api/v1/public/zerodb/events").mock(
+            return_value=httpx.Response(200, json={"ok": True})
+        )
         r = client.post(
             "/api/channels",
             json={"slug": "general", "name": "General"},

@@ -17,6 +17,8 @@ ANNOUNCEMENT_ROW = {
     "author_id": "user-001",
 }
 
+PINNED_ROW = {**ANNOUNCEMENT_ROW, "id": "ann-2", "title": "Important", "pinned": True}
+
 
 class TestCreateAnnouncement:
     def test_create_success(self, client, mock_api):
@@ -89,6 +91,32 @@ class TestListAnnouncements:
         r = client.get("/api/channels/empty/announcements")
         assert r.status_code == 200
         assert r.json()["data"] == []
+
+
+class TestPinnedAnnouncements:
+    def test_list_pinned(self, client, mock_api):
+        mock_api.post(f"{_table_prefix()}/query").mock(
+            return_value=httpx.Response(200, json={"data": [PINNED_ROW]})
+        )
+        r = client.get("/api/announcements/pinned")
+        assert r.status_code == 200
+        assert len(r.json()["data"]) == 1
+        assert r.json()["data"][0]["pinned"] is True
+
+    def test_list_pinned_empty(self, client, mock_api):
+        mock_api.post(f"{_table_prefix()}/query").mock(
+            return_value=httpx.Response(200, json={"data": []})
+        )
+        r = client.get("/api/announcements/pinned")
+        assert r.status_code == 200
+        assert r.json()["data"] == []
+
+    def test_list_pinned_with_pagination(self, client, mock_api):
+        mock_api.post(f"{_table_prefix()}/query").mock(
+            return_value=httpx.Response(200, json={"data": []})
+        )
+        r = client.get("/api/announcements/pinned?limit=10&skip=5")
+        assert r.status_code == 200
 
 
 class TestUpdateAnnouncement:

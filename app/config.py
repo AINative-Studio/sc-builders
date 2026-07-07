@@ -10,6 +10,11 @@ class Settings(BaseSettings):
     jwt_secret: str = "sc-builders-ws-token-secret"
     ws_token_ttl_seconds: int = 900
     tenant_name: str = "santa-cruz-builders"
+    cors_origins: str = "http://localhost:3000,https://sc-builders.ainative.studio,https://scbuilders.com"
+    rate_limit_default: str = "100/minute"
+    rate_limit_auth: str = "5/minute"
+    rate_limit_channel_create: str = "10/minute"
+    rate_limit_ws_token: str = "10/minute"
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 
