@@ -7,7 +7,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'https://sc-builders.ainative.studio',
+        target: 'https://sc-builders-production.up.railway.app',
         changeOrigin: true,
         secure: true,
       },
