@@ -1,7 +1,10 @@
+import { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from './auth';
 import Rail from './components/Rail';
 import TopBar from './components/TopBar';
+import NotificationSheet from './components/NotificationSheet';
+import CommandPalette from './components/CommandPalette';
 import Login from './pages/Login';
 import Discover from './pages/Discover';
 import Feed from './pages/Feed';
@@ -24,15 +27,32 @@ import Safety from './pages/data/Safety';
 import SqlPlayground from './pages/data/SqlPlayground';
 
 function Shell() {
+  const [showPalette, setShowPalette] = useState(false);
+  const [showNotif, setShowNotif] = useState(false);
+
+  const handleKeyDown = useCallback((e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      setShowPalette(v => !v);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '66px 1fr', height: '100vh', overflow: 'hidden' }}>
       <Rail />
       <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <TopBar />
+        <TopBar onOpenPalette={() => setShowPalette(true)} onOpenNotif={() => setShowNotif(v => !v)} />
         <div style={{ flex: 1, overflow: 'auto', background: 'var(--bg)' }}>
           <Outlet />
         </div>
       </div>
+      {showNotif && <NotificationSheet onClose={() => setShowNotif(false)} />}
+      {showPalette && <CommandPalette onClose={() => setShowPalette(false)} />}
     </div>
   );
 }
