@@ -1,66 +1,62 @@
-from fastapi import APIRouter, Depends
+from datetime import datetime, timezone
 
-from app.deps import current_user, get_token, require_organizer
+from fastapi import APIRouter, Depends, HTTPException
+
+from app.deps import current_user, require_organizer
 from app.models import EventCreate, EventUpdate, RSVPRequest
-from app.proxy import forward
+from app.pagination import paginate
+from app.zerodb import delete_row, emit_event, insert_row, query_rows, update_row
 
 router = APIRouter(prefix="/api/events", tags=["Events"])
+
+TABLE = "events"
+RSVP_TABLE = "event_rsvps"
 
 
 @router.post("", status_code=201)
 async def create_event(
     body: EventCreate,
     user: dict = Depends(require_organizer),
-    token: str = Depends(get_token),
 ):
-    return await forward(
-        "POST",
-        "/api/v1/community-events",
-        bearer_token=token,
-        json=body.model_dump(),
+    user_id = str(user.get("id", ""))
+    row = {
+        "title": body.title,
+        "description": body.description,
+        "location": body.location,
+        "starts_at": body.starts_at,
+        "ends_at": body.ends_at,
+        "max_attendees": body.max_attendees,
+        "created_by": user_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "status": "upcoming",
+    }
+    result = await insert_row(TABLE, row)
+
+    await emit_event(
+        "community.event.created",
+        {"title": body.title, "created_by": user_id},
     )
+    return result
 
 
 @router.get("")
-async def list_events(
-    limit: int = 50,
-    offset: int = 0,
-    token: str = Depends(get_token),
-):
-    return await forward(
-        "GET",
-        "/api/v1/community-events",
-        bearer_token=token,
-        params={"limit": limit, "offset": offset},
+async def list_events(limit: int = 50, skip: int = 0):
+    result = await query_rows(
+        TABLE,
+        sort={"starts_at": 1},
+        limit=limit,
+        skip=skip,
     )
-
-
-@router.get("/browse")
-async def browse_events(
-    limit: int = 50,
-    offset: int = 0,
-    token: str = Depends(get_token),
-):
-    return await forward(
-        "GET",
-        "/api/v1/community-events/browse",
-        bearer_token=token,
-        params={"limit": limit, "offset": offset},
-    )
-
-
-@router.get("/mine")
-async def my_events(token: str = Depends(get_token)):
-    return await forward(
-        "GET", "/api/v1/community-events/my-events", bearer_token=token
-    )
+    return paginate(result, limit=limit, skip=skip)
 
 
 @router.get("/{event_id}")
-async def get_event(event_id: str, token: str = Depends(get_token)):
-    return await forward(
-        "GET", f"/api/v1/community-events/{event_id}", bearer_token=token
-    )
+async def get_event(event_id: str):
+    result = await query_rows(TABLE, filters={"id": {"$eq": event_id}}, limit=1)
+    rows = result.get("data", [])
+    if not rows:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return rows[0]
 
 
 @router.patch("/{event_id}")
@@ -68,27 +64,19 @@ async def update_event(
     event_id: str,
     body: EventUpdate,
     user: dict = Depends(require_organizer),
-    token: str = Depends(get_token),
 ):
-    return await forward(
-        "PATCH",
-        f"/api/v1/community-events/{event_id}",
-        bearer_token=token,
-        json=body.model_dump(exclude_none=True),
-    )
+    updates = body.model_dump(exclude_none=True)
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    return await update_row(TABLE, event_id, updates)
 
 
 @router.delete("/{event_id}")
 async def delete_event(
     event_id: str,
     user: dict = Depends(require_organizer),
-    token: str = Depends(get_token),
 ):
-    return await forward(
-        "DELETE",
-        f"/api/v1/community-events/{event_id}",
-        bearer_token=token,
-    )
+    return await delete_row(TABLE, event_id)
 
 
 @router.post("/{event_id}/rsvp")
@@ -96,29 +84,36 @@ async def rsvp(
     event_id: str,
     body: RSVPRequest,
     user: dict = Depends(current_user),
-    token: str = Depends(get_token),
 ):
-    return await forward(
-        "POST",
-        f"/api/v1/community-events/{event_id}/rsvp",
-        bearer_token=token,
-        json=body.model_dump(),
+    user_id = str(user.get("id", ""))
+
+    existing = await query_rows(
+        RSVP_TABLE,
+        filters={"event_id": {"$eq": event_id}, "user_id": {"$eq": user_id}},
+        limit=1,
     )
+    rows = existing.get("data", [])
+
+    if rows:
+        row_id = rows[0].get("id") or rows[0].get("_id") or rows[0].get("row_id")
+        return await update_row(RSVP_TABLE, str(row_id), {"status": body.status})
+
+    row = {
+        "event_id": event_id,
+        "user_id": user_id,
+        "user_name": user.get("full_name") or user.get("name") or user.get("email", ""),
+        "status": body.status,
+        "rsvped_at": datetime.now(timezone.utc).isoformat(),
+    }
+    return await insert_row(RSVP_TABLE, row)
 
 
 @router.get("/{event_id}/attendees")
-async def get_attendees(event_id: str, token: str = Depends(get_token)):
-    return await forward(
-        "GET",
-        f"/api/v1/community-events/{event_id}/attendees",
-        bearer_token=token,
+async def get_attendees(event_id: str, limit: int = 100, skip: int = 0):
+    result = await query_rows(
+        RSVP_TABLE,
+        filters={"event_id": {"$eq": event_id}},
+        limit=limit,
+        skip=skip,
     )
-
-
-@router.get("/{event_id}/ical")
-async def export_ical(event_id: str, token: str = Depends(get_token)):
-    return await forward(
-        "GET",
-        f"/api/v1/community-events/{event_id}/export/ical",
-        bearer_token=token,
-    )
+    return paginate(result, limit=limit, skip=skip)
