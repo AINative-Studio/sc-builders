@@ -62,13 +62,21 @@ async def delete_row(table: str, row_id: str, *, bearer_token: str | None = None
 
 
 async def emit_event(event_type: str, data: dict, *, correlation_id: str | None = None) -> dict:
-    path = "/api/v1/public/zerodb/events"
-    body: dict = {"type": event_type, "data": data, "source": "sc-builders"}
-    if correlation_id:
-        body["correlation_id"] = correlation_id
-    r = await api_request("POST", path, json=body)
-    r.raise_for_status()
-    return r.json()
+    """Fire-and-forget event emission. Never raises."""
+    import logging
+
+    logger = logging.getLogger(__name__)
+    try:
+        path = "/api/v1/public/zerodb/events"
+        body: dict = {"type": event_type, "data": data, "source": "sc-builders"}
+        if correlation_id:
+            body["correlation_id"] = correlation_id
+        r = await api_request("POST", path, json=body)
+        r.raise_for_status()
+        return r.json()
+    except Exception:
+        logger.debug("emit_event(%s) failed — endpoint may not exist, skipping", event_type)
+        return {"ok": False, "event_type": event_type}
 
 
 async def embed_and_store(

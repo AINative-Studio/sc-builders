@@ -4,16 +4,34 @@ from app.config import settings
 from tests.conftest import AUTH_HEADER, stub_auth_me
 
 
+def _table_query(table: str):
+    return f"/api/v1/projects/{settings.project_id}/database/tables/{table}/query"
+
+
 def _reads_prefix():
     return f"/api/v1/projects/{settings.project_id}/database/tables/notification_reads"
+
+
+def _stub_community_tables(mock, rows=None):
+    """Mock the three community tables that notifications.py queries."""
+    if rows is None:
+        rows = {
+            "events": [],
+            "announcements": [
+                {"row_data": {"title": "Announcement"}, "row_id": "e1", "created_at": "2026-01-01T00:00:00Z"},
+            ],
+            "event_rsvps": [],
+        }
+    for table in ("events", "announcements", "event_rsvps"):
+        mock.post(_table_query(table)).mock(
+            return_value=httpx.Response(200, json={"data": rows.get(table, [])})
+        )
 
 
 class TestGetNotifications:
     def test_list_success(self, client, mock_api):
         stub_auth_me(mock_api)
-        mock_api.get("/api/v1/public/zerodb/events").mock(
-            return_value=httpx.Response(200, json={"events": [{"id": "e1", "type": "community.announcement"}]})
-        )
+        _stub_community_tables(mock_api)
         mock_api.post(f"{_reads_prefix()}/query").mock(
             return_value=httpx.Response(200, json={"data": []})
         )
@@ -25,9 +43,15 @@ class TestGetNotifications:
 
     def test_list_with_read_events(self, client, mock_api):
         stub_auth_me(mock_api)
-        mock_api.get("/api/v1/public/zerodb/events").mock(
-            return_value=httpx.Response(200, json={"events": [{"id": "e1"}, {"id": "e2"}]})
-        )
+        _stub_community_tables(mock_api, rows={
+            "events": [
+                {"row_data": {"title": "Event"}, "row_id": "e1", "created_at": "2026-01-02T00:00:00Z"},
+            ],
+            "announcements": [
+                {"row_data": {"title": "Ann"}, "row_id": "e2", "created_at": "2026-01-01T00:00:00Z"},
+            ],
+            "event_rsvps": [],
+        })
         mock_api.post(f"{_reads_prefix()}/query").mock(
             return_value=httpx.Response(200, json={"data": [{"event_id": "e1"}]})
         )
@@ -40,9 +64,9 @@ class TestGetNotifications:
 
     def test_list_with_type_filter(self, client, mock_api):
         stub_auth_me(mock_api)
-        mock_api.get("/api/v1/public/zerodb/events").mock(
-            return_value=httpx.Response(200, json={"events": []})
-        )
+        _stub_community_tables(mock_api, rows={
+            "events": [], "announcements": [], "event_rsvps": [],
+        })
         mock_api.post(f"{_reads_prefix()}/query").mock(
             return_value=httpx.Response(200, json={"data": []})
         )
@@ -96,9 +120,15 @@ class TestMarkRead:
 class TestMarkAllRead:
     def test_mark_all_read(self, client, mock_api):
         stub_auth_me(mock_api)
-        mock_api.get("/api/v1/public/zerodb/events").mock(
-            return_value=httpx.Response(200, json={"events": [{"id": "e1"}, {"id": "e2"}]})
-        )
+        _stub_community_tables(mock_api, rows={
+            "events": [
+                {"row_data": {"title": "Ev1"}, "row_id": "e1", "created_at": "2026-01-02T00:00:00Z"},
+            ],
+            "announcements": [
+                {"row_data": {"title": "Ann1"}, "row_id": "e2", "created_at": "2026-01-01T00:00:00Z"},
+            ],
+            "event_rsvps": [],
+        })
         mock_api.post(f"{_reads_prefix()}/query").mock(
             return_value=httpx.Response(200, json={"data": []})
         )

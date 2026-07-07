@@ -2,11 +2,35 @@ from fastapi import APIRouter, Depends
 
 from app.deps import current_user
 from app.models import NotificationMarkRead
-from app.zerodb import insert_row, list_events, query_rows, update_row
+from app.pagination import _flatten_row
+from app.zerodb import insert_row, query_rows, update_row
 
 router = APIRouter(prefix="/api/notifications", tags=["Notifications"])
 
 READS_TABLE = "notification_reads"
+
+NOTIFICATION_SOURCES = [
+    ("events", "community.event"),
+    ("announcements", "community.announcement"),
+    ("event_rsvps", "community.rsvp"),
+]
+
+
+async def _gather_notifications(limit: int = 50) -> list[dict]:
+    """Pull recent rows from community tables as notification items."""
+    items = []
+    per_table = max(limit // len(NOTIFICATION_SOURCES), 5)
+    for table, event_type in NOTIFICATION_SOURCES:
+        try:
+            result = await query_rows(table, sort={"created_at": -1}, limit=per_table)
+            for row in result.get("data", []):
+                flat = _flatten_row(row)
+                flat["type"] = event_type
+                items.append(flat)
+        except Exception:
+            pass
+    items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+    return items[:limit]
 
 
 @router.get("")
@@ -15,21 +39,26 @@ async def get_notifications(
     limit: int = 50,
     user: dict = Depends(current_user),
 ):
-    events = await list_events(event_type=event_type, limit=limit)
+    items = await _gather_notifications(limit=limit)
+
+    if event_type:
+        items = [i for i in items if i.get("type", "").startswith(event_type)]
 
     user_id = str(user.get("id", ""))
-    reads = await query_rows(
-        READS_TABLE,
-        filters={"user_id": {"$eq": user_id}},
-        limit=1000,
-    )
-    read_ids = {r.get("event_id") for r in reads.get("data", [])}
+    try:
+        reads = await query_rows(
+            READS_TABLE,
+            filters={"user_id": {"$eq": user_id}},
+            limit=1000,
+        )
+        read_ids = {r.get("event_id") or r.get("row_data", {}).get("event_id") for r in reads.get("data", [])}
+    except Exception:
+        read_ids = set()
 
-    items = events.get("events", events.get("data", []))
     unread_count = 0
     for item in items:
-        eid = item.get("id") or item.get("_id", "")
-        item["is_read"] = str(eid) in read_ids
+        eid = str(item.get("id", ""))
+        item["is_read"] = eid in read_ids
         if not item["is_read"]:
             unread_count += 1
 
@@ -58,19 +87,21 @@ async def mark_read(
 @router.post("/read-all")
 async def mark_all_read(user: dict = Depends(current_user)):
     user_id = str(user.get("id", ""))
-    events = await list_events(limit=200)
-    items = events.get("events", events.get("data", []))
+    items = await _gather_notifications(limit=200)
 
-    reads = await query_rows(
-        READS_TABLE,
-        filters={"user_id": {"$eq": user_id}},
-        limit=1000,
-    )
-    read_ids = {r.get("event_id") for r in reads.get("data", [])}
+    try:
+        reads = await query_rows(
+            READS_TABLE,
+            filters={"user_id": {"$eq": user_id}},
+            limit=1000,
+        )
+        read_ids = {r.get("event_id") or r.get("row_data", {}).get("event_id") for r in reads.get("data", [])}
+    except Exception:
+        read_ids = set()
 
     marked = 0
     for item in items:
-        eid = str(item.get("id") or item.get("_id", ""))
+        eid = str(item.get("id", ""))
         if eid and eid not in read_ids:
             await insert_row(READS_TABLE, {"user_id": user_id, "event_id": eid})
             marked += 1

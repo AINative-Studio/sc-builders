@@ -122,4 +122,5 @@ async def community_chat_ws(websocket: WebSocket):
 
 @router.get("/ws/stats")
 async def ws_stats():
-    return {"connections": manager.stats}
+    total = sum(manager.stats.values()) if isinstance(manager.stats, dict) else 0
+    return {"connections": manager.stats, "active_connections": total}

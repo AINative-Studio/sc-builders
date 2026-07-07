@@ -100,6 +100,21 @@ export default function Rail() {
           cursor: 'pointer',
         }}
       >T</button>
+      <button
+        onClick={logout}
+        title="Sign out"
+        style={{
+          width: 40, height: 40,
+          border: 'none',
+          background: 'transparent',
+          borderRadius: 11,
+          cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 14,
+          color: 'var(--railmut)',
+          marginTop: 4,
+        }}
+      >⏻</button>
     </div>
   );
 }

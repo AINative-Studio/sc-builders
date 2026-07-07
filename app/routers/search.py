@@ -62,7 +62,11 @@ async def semantic_search(
     limit: int = Query(10, ge=1, le=50),
     token: str = Depends(get_token),
 ):
-    return await search_embeddings(q, collection=collection, limit=limit)
+    try:
+        return await search_embeddings(q, collection=collection, limit=limit)
+    except Exception:
+        logger.exception("Semantic search failed for q=%s", q)
+        return {"results": [], "query": q, "total_results": 0, "error": "Search temporarily unavailable"}
 
 
 @router.get("/prospect")
@@ -71,14 +75,18 @@ async def prospect_search(
     limit: int = Query(10, ge=1, le=50),
     token: str = Depends(get_token),
 ):
-    resp = await api_request(
-        "POST",
-        "/api/v1/public/data/prospect",
-        json={"query": q, "limit": limit * 3},
-        bearer_token=token,
-    )
-    resp.raise_for_status()
-    data = resp.json()
+    try:
+        resp = await api_request(
+            "POST",
+            "/api/v1/public/data/prospect",
+            json={"query": q, "limit": limit * 3},
+            bearer_token=token,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception:
+        logger.exception("Prospect search failed for q=%s", q)
+        return {"query": q, "results": [], "total": 0}
 
     sc_cities_lower = {c.lower() for c in SC_COUNTY_CITIES}
     filtered = [

@@ -52,11 +52,15 @@ async def list_events(limit: int = 50, skip: int = 0):
 
 @router.get("/{event_id}")
 async def get_event(event_id: str):
-    result = await query_rows(TABLE, filters={"id": {"$eq": event_id}}, limit=1)
+    from app.pagination import _flatten_row
+
+    result = await query_rows(TABLE, filters={}, limit=200)
     rows = result.get("data", [])
-    if not rows:
-        raise HTTPException(status_code=404, detail="Event not found")
-    return rows[0]
+    for row in rows:
+        rid = row.get("row_id", row.get("id", ""))
+        if str(rid) == event_id:
+            return _flatten_row(row)
+    raise HTTPException(status_code=404, detail="Event not found")
 
 
 @router.patch("/{event_id}")

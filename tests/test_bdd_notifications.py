@@ -13,7 +13,27 @@ from tests.conftest import AUTH_HEADER, MEMBER_USER
 scenarios("features/notifications.feature")
 
 READS_TABLE = f"/api/v1/projects/{settings.project_id}/database/tables/notification_reads"
-EVENTS_URL = "/api/v1/public/zerodb/events"
+
+
+def _table_query(table: str):
+    return f"/api/v1/projects/{settings.project_id}/database/tables/{table}/query"
+
+
+def _stub_community_tables(mock, rows=None):
+    if rows is None:
+        rows = {
+            "events": [
+                {"row_data": {"title": "Test"}, "row_id": "evt-1", "created_at": "2026-01-02T00:00:00Z"},
+            ],
+            "announcements": [
+                {"row_data": {"slug": "new"}, "row_id": "evt-2", "created_at": "2026-01-01T00:00:00Z"},
+            ],
+            "event_rsvps": [],
+        }
+    for table in ("events", "announcements", "event_rsvps"):
+        mock.post(_table_query(table)).mock(
+            return_value=httpx.Response(200, json={"data": rows.get(table, [])})
+        )
 
 
 @pytest.fixture()
@@ -45,14 +65,7 @@ def given_member(bdd_mock):
 
 @given("there are community events in the feed")
 def given_events(bdd_mock):
-    bdd_mock.get(EVENTS_URL).mock(
-        return_value=httpx.Response(200, json={
-            "events": [
-                {"id": "evt-1", "type": "community.announcement", "data": {"title": "Test"}},
-                {"id": "evt-2", "type": "community.channel.created", "data": {"slug": "new"}},
-            ]
-        })
-    )
+    _stub_community_tables(bdd_mock)
     bdd_mock.post(f"{READS_TABLE}/query").mock(
         return_value=httpx.Response(200, json={"data": []})
     )
@@ -92,13 +105,13 @@ def when_mark_read(bdd_client, bdd_mock, ctx, ids):
 
 @when("I mark all notifications as read")
 def when_mark_all(bdd_client, bdd_mock, ctx):
-    bdd_mock.get(EVENTS_URL).mock(
-        return_value=httpx.Response(200, json={
-            "events": [
-                {"id": "evt-1", "type": "community.announcement", "data": {}},
-            ]
-        })
-    )
+    _stub_community_tables(bdd_mock, rows={
+        "events": [
+            {"row_data": {}, "row_id": "evt-1", "created_at": "2026-01-01T00:00:00Z"},
+        ],
+        "announcements": [],
+        "event_rsvps": [],
+    })
     bdd_mock.post(f"{READS_TABLE}/query").mock(
         return_value=httpx.Response(200, json={"data": []})
     )
