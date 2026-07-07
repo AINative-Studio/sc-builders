@@ -22,6 +22,7 @@ from app.routers import (
     notifications,
     search,
     social,
+    ws,
 )
 
 limiter = Limiter(key_func=get_remote_address)
@@ -64,6 +65,7 @@ app.include_router(notifications.router)
 app.include_router(search.router)
 app.include_router(comments.router)
 app.include_router(members.router)
+app.include_router(ws.router)
 app.include_router(data.router)
 
 

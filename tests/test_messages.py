@@ -4,111 +4,119 @@ from app.config import settings
 from tests.conftest import AUTH_HEADER, FAKE_USER, MEMBER_USER, stub_auth_me
 
 
-def _table_prefix():
-    return f"/api/v1/projects/{settings.project_id}/database/tables/channels"
+def _msg_table():
+    return f"/api/v1/projects/{settings.project_id}/database/tables/messages"
 
 
-CHANNEL_ROW = {
-    "id": "row-1",
-    "slug": "general",
-    "stream_id": "stream-abc",
+FAKE_MSG = {
+    "id": "msg-1",
+    "row_data": {
+        "channel_slug": "general",
+        "sender_id": "user-001",
+        "sender_name": "Tester",
+        "content": "hello world",
+        "sent_at": "2026-07-07T12:00:00Z",
+    },
 }
 
 
 class TestGetHistory:
     def test_history_success(self, client, mock_api):
-        mock_api.post(f"{_table_prefix()}/query").mock(
-            return_value=httpx.Response(200, json={"data": [CHANNEL_ROW]})
+        mock_api.post(f"{_msg_table()}/query").mock(
+            return_value=httpx.Response(200, json={"data": [FAKE_MSG], "total": 1})
         )
-        mock_api.get("/api/v1/streams/stream-abc/chat/history").mock(
-            return_value=httpx.Response(200, json={"messages": [], "has_more": False})
-        )
-        r = client.get("/api/channels/general/messages", headers=AUTH_HEADER)
+        r = client.get("/api/channels/general/messages")
         assert r.status_code == 200
-        assert "messages" in r.json()
+        body = r.json()
+        assert body["total"] == 1
+        assert len(body["items"]) == 1
 
-    def test_history_with_before(self, client, mock_api):
-        mock_api.post(f"{_table_prefix()}/query").mock(
-            return_value=httpx.Response(200, json={"data": [CHANNEL_ROW]})
+    def test_history_empty(self, client, mock_api):
+        mock_api.post(f"{_msg_table()}/query").mock(
+            return_value=httpx.Response(200, json={"data": [], "total": 0})
         )
-        mock_api.get("/api/v1/streams/stream-abc/chat/history").mock(
-            return_value=httpx.Response(200, json={"messages": []})
+        r = client.get("/api/channels/general/messages")
+        assert r.status_code == 200
+        assert r.json()["items"] == []
+
+    def test_history_pagination(self, client, mock_api):
+        mock_api.post(f"{_msg_table()}/query").mock(
+            return_value=httpx.Response(200, json={"data": [], "total": 0})
         )
-        r = client.get(
-            "/api/channels/general/messages?before=cursor-123&limit=10",
+        r = client.get("/api/channels/general/messages?limit=10&skip=5")
+        assert r.status_code == 200
+
+
+class TestSendMessage:
+    def test_send_success(self, client, mock_api):
+        stub_auth_me(mock_api)
+        mock_api.post(f"{_msg_table()}/rows").mock(
+            return_value=httpx.Response(200, json={"id": "msg-new"})
+        )
+        mock_api.post("/api/v1/public/zerodb/events").mock(
+            return_value=httpx.Response(200, json={"ok": True})
+        )
+        r = client.post(
+            "/api/channels/general/messages",
+            json={"content": "hello"},
             headers=AUTH_HEADER,
         )
-        assert r.status_code == 200
+        assert r.status_code == 201
 
-    def test_history_channel_not_found(self, client, mock_api):
-        mock_api.post(f"{_table_prefix()}/query").mock(
-            return_value=httpx.Response(200, json={"data": []})
+    def test_send_empty_content(self, client, mock_api):
+        stub_auth_me(mock_api)
+        r = client.post(
+            "/api/channels/general/messages",
+            json={"content": ""},
+            headers=AUTH_HEADER,
         )
-        r = client.get("/api/channels/missing/messages", headers=AUTH_HEADER)
-        assert r.status_code == 404
+        assert r.status_code == 422
 
-    def test_history_no_auth(self, client, mock_api):
-        r = client.get("/api/channels/general/messages")
+    def test_send_no_auth(self, client, mock_api):
+        r = client.post(
+            "/api/channels/general/messages",
+            json={"content": "hello"},
+        )
         assert r.status_code == 422
 
 
-class TestAddModerator:
-    def test_add_moderator_success(self, client, mock_api):
+class TestDeleteMessage:
+    def test_delete_own_message(self, client, mock_api):
         stub_auth_me(mock_api)
-        mock_api.post(f"{_table_prefix()}/query").mock(
-            return_value=httpx.Response(200, json={"data": [CHANNEL_ROW]})
+        mock_api.post(f"{_msg_table()}/query").mock(
+            return_value=httpx.Response(200, json={
+                "data": [{"row_data": {"sender_id": "user-001"}}]
+            })
         )
-        mock_api.post("/api/v1/streams/stream-abc/moderators").mock(
+        mock_api.delete(f"{_msg_table()}/rows/msg-1").mock(
             return_value=httpx.Response(200, json={"ok": True})
         )
-        r = client.post(
-            "/api/channels/general/messages/moderators",
-            json={"user_id": "user-002"},
+        r = client.delete(
+            "/api/channels/general/messages/msg-1",
             headers=AUTH_HEADER,
         )
         assert r.status_code == 200
 
-    def test_add_moderator_requires_organizer(self, client, mock_api):
+    def test_delete_others_message_as_member(self, client, mock_api):
         stub_auth_me(mock_api, user=MEMBER_USER)
-        r = client.post(
-            "/api/channels/general/messages/moderators",
-            json={"user_id": "user-002"},
+        mock_api.post(f"{_msg_table()}/query").mock(
+            return_value=httpx.Response(200, json={
+                "data": [{"row_data": {"sender_id": "user-001"}}]
+            })
+        )
+        r = client.delete(
+            "/api/channels/general/messages/msg-1",
             headers=AUTH_HEADER,
         )
         assert r.status_code == 403
 
-    def test_add_moderator_channel_not_found(self, client, mock_api):
+    def test_delete_not_found(self, client, mock_api):
         stub_auth_me(mock_api)
-        mock_api.post(f"{_table_prefix()}/query").mock(
+        mock_api.post(f"{_msg_table()}/query").mock(
             return_value=httpx.Response(200, json={"data": []})
         )
-        r = client.post(
-            "/api/channels/missing/messages/moderators",
-            json={"user_id": "u"},
+        r = client.delete(
+            "/api/channels/general/messages/msg-1",
             headers=AUTH_HEADER,
         )
         assert r.status_code == 404
-
-
-class TestRemoveModerator:
-    def test_remove_moderator_success(self, client, mock_api):
-        stub_auth_me(mock_api)
-        mock_api.post(f"{_table_prefix()}/query").mock(
-            return_value=httpx.Response(200, json={"data": [CHANNEL_ROW]})
-        )
-        mock_api.delete("/api/v1/streams/stream-abc/moderators/user-002").mock(
-            return_value=httpx.Response(200, json={"ok": True})
-        )
-        r = client.delete(
-            "/api/channels/general/messages/moderators/user-002",
-            headers=AUTH_HEADER,
-        )
-        assert r.status_code == 200
-
-    def test_remove_moderator_requires_organizer(self, client, mock_api):
-        stub_auth_me(mock_api, user=MEMBER_USER)
-        r = client.delete(
-            "/api/channels/general/messages/moderators/user-002",
-            headers=AUTH_HEADER,
-        )
-        assert r.status_code == 403

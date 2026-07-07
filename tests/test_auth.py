@@ -1,14 +1,38 @@
 import httpx
 import respx
 
+from app.config import settings
 from tests.conftest import AUTH_HEADER, FAKE_TOKEN, FAKE_USER, stub_auth_me
+
+
+def _member_table():
+    return f"/api/v1/projects/{settings.project_id}/database/tables/member_directory"
+
+
+def _stub_member_seed(mock_api, exists=False):
+    """Stub the ZeroDB calls that _ensure_member_row makes."""
+    if exists:
+        mock_api.post(f"{_member_table()}/query").mock(
+            return_value=httpx.Response(200, json={"data": [{"user_id": "u"}]})
+        )
+    else:
+        mock_api.post(f"{_member_table()}/query").mock(
+            return_value=httpx.Response(200, json={"data": []})
+        )
+        mock_api.post(f"{_member_table()}/rows").mock(
+            return_value=httpx.Response(200, json={"id": "member-new"})
+        )
 
 
 class TestRegister:
     def test_register_success(self, client, mock_api):
         mock_api.post("/v1/auth/register").mock(
-            return_value=httpx.Response(200, json={"id": "new-user", "email": "new@example.com"})
+            return_value=httpx.Response(200, json={
+                "id": "new-user", "email": "new@example.com",
+                "user": {"id": "new-user", "email": "new@example.com"},
+            })
         )
+        _stub_member_seed(mock_api)
         r = client.post("/api/auth/register", json={"email": "new@example.com", "password": "Secret1!"})
         assert r.status_code == 200
         assert r.json()["email"] == "new@example.com"
@@ -29,16 +53,37 @@ class TestRegister:
         route = mock_api.post("/v1/auth/register").mock(
             return_value=httpx.Response(200, json={"id": "u"})
         )
+        _stub_member_seed(mock_api)
         client.post("/api/auth/register", json={"email": "a@b.com", "password": "pw"})
         sent = route.calls[0].request.content
         assert b"santa-cruz-builders" in sent
+
+    def test_register_seeds_member(self, client, mock_api):
+        mock_api.post("/v1/auth/register").mock(
+            return_value=httpx.Response(200, json={
+                "user": {"id": "new-user", "email": "new@example.com", "full_name": "Test User"},
+            })
+        )
+        member_query = mock_api.post(f"{_member_table()}/query").mock(
+            return_value=httpx.Response(200, json={"data": []})
+        )
+        member_insert = mock_api.post(f"{_member_table()}/rows").mock(
+            return_value=httpx.Response(200, json={"id": "member-1"})
+        )
+        client.post("/api/auth/register", json={"email": "new@example.com", "password": "Secret1!"})
+        assert member_query.called
+        assert member_insert.called
 
 
 class TestLogin:
     def test_login_success(self, client, mock_api):
         mock_api.post("/v1/auth/login").mock(
-            return_value=httpx.Response(200, json={"access_token": "tok", "token_type": "bearer"})
+            return_value=httpx.Response(200, json={
+                "access_token": "tok", "token_type": "bearer",
+                "user": {"id": "user-001", "email": "a@b.com"},
+            })
         )
+        _stub_member_seed(mock_api, exists=True)
         r = client.post("/api/auth/login", json={"email": "a@b.com", "password": "pw"})
         assert r.status_code == 200
         assert "access_token" in r.json()
