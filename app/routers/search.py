@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 
 from app.deps import get_token
 from app.proxy import forward
+from app.zerodb import search_vectors
 
 router = APIRouter(prefix="/api/search", tags=["Search"])
 
@@ -25,3 +26,13 @@ async def search(
             "offset": offset,
         },
     )
+
+
+@router.get("/semantic")
+async def semantic_search(
+    q: str,
+    collection: str = "announcements",
+    limit: int = 10,
+    token: str = Depends(get_token),
+):
+    return await search_vectors(collection, q, limit=limit)

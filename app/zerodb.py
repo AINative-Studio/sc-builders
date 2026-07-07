@@ -71,6 +71,37 @@ async def emit_event(event_type: str, data: dict, *, correlation_id: str | None 
     return r.json()
 
 
+async def upsert_vector(
+    collection: str,
+    doc_id: str,
+    text: str,
+    metadata: dict | None = None,
+    *,
+    bearer_token: str | None = None,
+) -> dict:
+    path = f"/api/v1/projects/{settings.project_id}/vectors/{collection}"
+    body: dict = {"id": doc_id, "text": text}
+    if metadata:
+        body["metadata"] = metadata
+    r = await api_request("POST", path, json=body, bearer_token=bearer_token)
+    r.raise_for_status()
+    return r.json()
+
+
+async def search_vectors(
+    collection: str,
+    query: str,
+    *,
+    limit: int = 10,
+    bearer_token: str | None = None,
+) -> dict:
+    path = f"/api/v1/projects/{settings.project_id}/vectors/{collection}/search"
+    body: dict = {"query": query, "limit": limit}
+    r = await api_request("POST", path, json=body, bearer_token=bearer_token)
+    r.raise_for_status()
+    return r.json()
+
+
 async def list_events(
     event_type: str | None = None,
     *,

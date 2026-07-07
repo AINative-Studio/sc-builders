@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from app.config import settings
 from app.deps import current_user, require_organizer
 from app.models import ChannelCreate, ChannelUpdate
+from app.pagination import paginate
 from app.zerodb import emit_event, insert_row, query_rows, update_row
 
 router = APIRouter(prefix="/api/channels", tags=["Channels"])
@@ -54,7 +55,8 @@ async def list_channels(
     filters: dict = {"archived": {"$eq": False}}
     if visibility:
         filters["visibility"] = {"$eq": visibility}
-    return await query_rows(TABLE, filters=filters, limit=limit, skip=skip)
+    result = await query_rows(TABLE, filters=filters, limit=limit, skip=skip)
+    return paginate(result, limit=limit, skip=skip)
 
 
 @router.get("/{slug}")

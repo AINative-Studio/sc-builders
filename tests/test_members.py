@@ -21,29 +21,30 @@ MEMBER_ROW = {
 class TestListMembers:
     def test_list_success(self, client, mock_api):
         mock_api.post(f"{_table_prefix()}/query").mock(
-            return_value=httpx.Response(200, json={"data": [MEMBER_ROW]})
+            return_value=httpx.Response(200, json={"data": [MEMBER_ROW], "total": 1})
         )
         r = client.get("/api/members")
         assert r.status_code == 200
-        assert len(r.json()["data"]) == 1
+        assert len(r.json()["items"]) == 1
+        assert r.json()["total"] == 1
 
     def test_list_filter_skill(self, client, mock_api):
         mock_api.post(f"{_table_prefix()}/query").mock(
-            return_value=httpx.Response(200, json={"data": [MEMBER_ROW]})
+            return_value=httpx.Response(200, json={"data": [MEMBER_ROW], "total": 1})
         )
         r = client.get("/api/members?skill=python")
         assert r.status_code == 200
 
     def test_list_filter_availability(self, client, mock_api):
         mock_api.post(f"{_table_prefix()}/query").mock(
-            return_value=httpx.Response(200, json={"data": []})
+            return_value=httpx.Response(200, json={"data": [], "total": 0})
         )
         r = client.get("/api/members?availability=hiring")
         assert r.status_code == 200
 
     def test_list_pagination(self, client, mock_api):
         mock_api.post(f"{_table_prefix()}/query").mock(
-            return_value=httpx.Response(200, json={"data": []})
+            return_value=httpx.Response(200, json={"data": [], "total": 0})
         )
         r = client.get("/api/members?limit=10&skip=5")
         assert r.status_code == 200

@@ -29,6 +29,9 @@ class TestCreateAnnouncement:
         mock_api.post("/api/v1/public/zerodb/events").mock(
             return_value=httpx.Response(200, json={"ok": True})
         )
+        mock_api.post(f"/api/v1/projects/{settings.project_id}/vectors/announcements").mock(
+            return_value=httpx.Response(200, json={"ok": True})
+        )
         r = client.post(
             "/api/announcements",
             json={"title": "Welcome!", "body": "Hello SC Builders", "channel_slug": "general"},
@@ -67,6 +70,9 @@ class TestCreateAnnouncement:
         event_route = mock_api.post("/api/v1/public/zerodb/events").mock(
             return_value=httpx.Response(200, json={"ok": True})
         )
+        mock_api.post(f"/api/v1/projects/{settings.project_id}/vectors/announcements").mock(
+            return_value=httpx.Response(200, json={"ok": True})
+        )
         client.post(
             "/api/announcements",
             json={"title": "Test", "body": "body"},
@@ -78,42 +84,42 @@ class TestCreateAnnouncement:
 class TestListAnnouncements:
     def test_list_by_channel(self, client, mock_api):
         mock_api.post(f"{_table_prefix()}/query").mock(
-            return_value=httpx.Response(200, json={"data": [ANNOUNCEMENT_ROW]})
+            return_value=httpx.Response(200, json={"data": [ANNOUNCEMENT_ROW], "total": 1})
         )
         r = client.get("/api/channels/general/announcements")
         assert r.status_code == 200
-        assert len(r.json()["data"]) == 1
+        assert len(r.json()["items"]) == 1
 
     def test_list_empty(self, client, mock_api):
         mock_api.post(f"{_table_prefix()}/query").mock(
-            return_value=httpx.Response(200, json={"data": []})
+            return_value=httpx.Response(200, json={"data": [], "total": 0})
         )
         r = client.get("/api/channels/empty/announcements")
         assert r.status_code == 200
-        assert r.json()["data"] == []
+        assert r.json()["items"] == []
 
 
 class TestPinnedAnnouncements:
     def test_list_pinned(self, client, mock_api):
         mock_api.post(f"{_table_prefix()}/query").mock(
-            return_value=httpx.Response(200, json={"data": [PINNED_ROW]})
+            return_value=httpx.Response(200, json={"data": [PINNED_ROW], "total": 1})
         )
         r = client.get("/api/announcements/pinned")
         assert r.status_code == 200
-        assert len(r.json()["data"]) == 1
-        assert r.json()["data"][0]["pinned"] is True
+        assert len(r.json()["items"]) == 1
+        assert r.json()["items"][0]["pinned"] is True
 
     def test_list_pinned_empty(self, client, mock_api):
         mock_api.post(f"{_table_prefix()}/query").mock(
-            return_value=httpx.Response(200, json={"data": []})
+            return_value=httpx.Response(200, json={"data": [], "total": 0})
         )
         r = client.get("/api/announcements/pinned")
         assert r.status_code == 200
-        assert r.json()["data"] == []
+        assert r.json()["items"] == []
 
     def test_list_pinned_with_pagination(self, client, mock_api):
         mock_api.post(f"{_table_prefix()}/query").mock(
-            return_value=httpx.Response(200, json={"data": []})
+            return_value=httpx.Response(200, json={"data": [], "total": 0})
         )
         r = client.get("/api/announcements/pinned?limit=10&skip=5")
         assert r.status_code == 200

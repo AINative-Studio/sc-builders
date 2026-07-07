@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.deps import current_user
 from app.models import MemberProfileUpdate
+from app.pagination import paginate
 from app.zerodb import insert_row, query_rows, update_row
 
 router = APIRouter(prefix="/api/members", tags=["Members"])
@@ -21,7 +22,8 @@ async def list_members(
         filters["skills"] = {"$contains": skill}
     if availability:
         filters["availability"] = {"$eq": availability}
-    return await query_rows(TABLE, filters=filters if filters else None, limit=limit, skip=skip)
+    result = await query_rows(TABLE, filters=filters if filters else None, limit=limit, skip=skip)
+    return paginate(result, limit=limit, skip=skip)
 
 
 @router.get("/me")

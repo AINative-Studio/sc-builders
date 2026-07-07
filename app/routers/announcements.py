@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.deps import current_user, require_organizer
 from app.models import AnnouncementCreate, AnnouncementUpdate
-from app.zerodb import emit_event, insert_row, query_rows, update_row
+from app.pagination import paginate
+from app.zerodb import emit_event, insert_row, query_rows, update_row, upsert_vector
 
 router = APIRouter(tags=["Announcements"])
 
@@ -34,29 +35,44 @@ async def create_announcement(
             "channel_slug": body.channel_slug,
         },
     )
+
+    ann_id = result.get("id") or result.get("_id", "")
+    if ann_id:
+        try:
+            await upsert_vector(
+                "announcements",
+                str(ann_id),
+                f"{body.title}\n{body.body}",
+                metadata={"channel_slug": body.channel_slug, "author_id": row["author_id"]},
+            )
+        except Exception:
+            pass
+
     return result
 
 
 @router.get("/api/announcements/pinned")
 async def list_pinned_announcements(limit: int = 50, skip: int = 0):
-    return await query_rows(
+    result = await query_rows(
         TABLE,
         filters={"pinned": {"$eq": True}},
         sort={"published_at": -1},
         limit=limit,
         skip=skip,
     )
+    return paginate(result, limit=limit, skip=skip)
 
 
 @router.get("/api/channels/{slug}/announcements")
 async def list_announcements(slug: str, limit: int = 50, skip: int = 0):
-    return await query_rows(
+    result = await query_rows(
         TABLE,
         filters={"channel_slug": {"$eq": slug}},
         sort={"published_at": -1},
         limit=limit,
         skip=skip,
     )
+    return paginate(result, limit=limit, skip=skip)
 
 
 @router.patch("/api/announcements/{announcement_id}")

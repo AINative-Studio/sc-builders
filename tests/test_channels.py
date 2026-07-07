@@ -77,18 +77,33 @@ class TestCreateChannel:
 class TestListChannels:
     def test_list_success(self, client, mock_api):
         mock_api.post(f"{_table_prefix()}/query").mock(
-            return_value=httpx.Response(200, json={"data": [CHANNEL_ROW]})
+            return_value=httpx.Response(200, json={"data": [CHANNEL_ROW], "total": 1})
         )
         r = client.get("/api/channels")
         assert r.status_code == 200
-        assert len(r.json()["data"]) == 1
+        data = r.json()
+        assert len(data["items"]) == 1
+        assert data["total"] == 1
+        assert data["offset"] == 0
+        assert data["has_more"] is False
 
     def test_list_filter_visibility(self, client, mock_api):
         mock_api.post(f"{_table_prefix()}/query").mock(
-            return_value=httpx.Response(200, json={"data": []})
+            return_value=httpx.Response(200, json={"data": [], "total": 0})
         )
         r = client.get("/api/channels?visibility=private")
         assert r.status_code == 200
+        assert r.json()["items"] == []
+
+    def test_list_pagination_has_more(self, client, mock_api):
+        mock_api.post(f"{_table_prefix()}/query").mock(
+            return_value=httpx.Response(200, json={"data": [CHANNEL_ROW], "total": 100})
+        )
+        r = client.get("/api/channels?limit=10&skip=0")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["has_more"] is True
+        assert data["total"] == 100
 
 
 class TestGetChannel:
