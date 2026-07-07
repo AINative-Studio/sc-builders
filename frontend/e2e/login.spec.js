@@ -60,18 +60,30 @@ test.describe('Login flow', () => {
     expect(url).not.toContain('/login');
   });
 
-  test('should show error on invalid credentials', async ({ page }) => {
+  test('should show error on invalid credentials without crashing', async ({ page }) => {
+    const pageErrors = [];
+    page.on('pageerror', err => pageErrors.push(err.message));
+
     await page.goto('http://localhost:5174/login');
     await page.fill('input[type="email"]', 'bad@example.com');
     await page.fill('input[type="password"]', 'wrongpassword');
-
     await page.click('button[type="submit"]');
 
-    // Wait for error message to appear
+    // Wait for error response
     await page.waitForTimeout(2000);
 
     // Should still be on login page
     expect(page.url()).toContain('/login');
+
+    // Error message should be visible as text, not crash React
+    const errorText = await page.locator('[style*="accent"]').last().textContent();
+    console.log('Error message displayed:', errorText);
+    expect(errorText).toBeTruthy();
+    expect(errorText.length).toBeGreaterThan(3);
+
+    // No React crash errors
+    const reactCrashes = pageErrors.filter(e => e.includes('Objects are not valid as a React child'));
+    expect(reactCrashes).toHaveLength(0);
   });
 
   test('should show app shell after login', async ({ page }) => {

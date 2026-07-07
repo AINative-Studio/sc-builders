@@ -20,7 +20,9 @@ export default function Login() {
       await login(email, password);
       navigate('/', { replace: true });
     } catch (err) {
-      setError(err.detail?.detail || err.message || 'Login failed');
+      const d = err.detail?.detail;
+      const msg = typeof d === 'string' ? d : d?.detail || err.message || 'Login failed';
+      setError(msg);
     } finally {
       setLoading(false);
     }
