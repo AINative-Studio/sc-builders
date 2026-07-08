@@ -21,6 +21,7 @@ from app.routers import (
     members,
     messages,
     notifications,
+    profile,
     search,
     social,
     ws,
@@ -69,6 +70,7 @@ app.include_router(members.router)
 app.include_router(ws.router)
 app.include_router(data.router)
 app.include_router(intents.router)
+app.include_router(profile.router)
 
 
 @app.get("/health", tags=["Health"])
