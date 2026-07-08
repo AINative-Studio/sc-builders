@@ -22,3 +22,20 @@ export const get = (path) => api(path);
 export const post = (path, body) => api(path, { method: 'POST', body });
 export const patch = (path, body) => api(path, { method: 'PATCH', body });
 export const del = (path) => api(path, { method: 'DELETE' });
+
+// Social graph — /api/social/*
+export const social = {
+  follow: (uid) => post(`/api/social/follow/${uid}`),
+  unfollow: (uid) => del(`/api/social/follow/${uid}`),
+  sendFriendRequest: (uid) => post(`/api/social/friend-request/${uid}`),
+  acceptFriend: (reqId) => post(`/api/social/friend-request/${reqId}/accept`),
+  declineFriend: (reqId) => post(`/api/social/friend-request/${reqId}/decline`),
+  cancelFriendRequest: (reqId) => del(`/api/social/friend-request/${reqId}`),
+  block: (uid) => post(`/api/social/block/${uid}`),
+  ignore: (uid) => post(`/api/social/ignore/${uid}`),
+  followers: (uid) => get(`/api/social/${uid}/followers`),
+  following: (uid) => get(`/api/social/${uid}/following`),
+  friends: (uid) => get(`/api/social/${uid}/friends`),
+  myFriendRequests: () => get('/api/social/me/friend-requests'),
+  myStats: () => get('/api/social/me/stats'),
+};

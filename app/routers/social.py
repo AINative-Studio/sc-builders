@@ -18,7 +18,8 @@ async def unfollow(uid: str, user: dict = Depends(current_user), token: str = De
 
 @router.post("/friend-request/{uid}")
 async def send_friend_request(uid: str, user: dict = Depends(current_user), token: str = Depends(get_token)):
-    return await forward("POST", f"/api/v1/social/friend-request/{uid}", bearer_token=token)
+    # Upstream requires a JSON body even when there's nothing to send.
+    return await forward("POST", f"/api/v1/social/friend-request/{uid}", bearer_token=token, json={})
 
 
 @router.post("/friend-request/{req_id}/accept")
