@@ -9,6 +9,7 @@ const PW = 'Passw0rd!123';
 test.use({ baseURL: PROD });
 
 test('user can view and edit their own profile end-to-end', async ({ page, request }) => {
+  test.setTimeout(90000); // upstream profile calls are slow (~3s each)
   // Register via API, then log in through the UI.
   const reg = await request.post(`https://sc-builders-production.up.railway.app/api/auth/register`, {
     data: { email: EMAIL, password: PW, handle: 'pe2e', display_name: 'PE2E User' },
