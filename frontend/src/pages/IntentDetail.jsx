@@ -1,19 +1,54 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import Badge from '../components/Badge';
+import { intents } from '../api';
 
 export default function IntentDetail() {
   const nav = useNavigate();
-  const [nudged, setNudged] = useState(false);
-  const [delegated, setDelegated] = useState(false);
-  const [resolved, setResolved] = useState(false);
+  const { id } = useParams();
+  const [intent, setIntent] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [busyMatch, setBusyMatch] = useState(null);
 
-  const timeline = [
-    { color: 'var(--success)', text: <><b>ana</b> responded — available Thu afternoon</>, sub: '12m ago · match 98%', subColor: 'var(--success)' },
-    { color: 'var(--primary)', text: <>AI introduced you to <b>ana</b> and <b>kai</b></>, sub: '1h ago · auto-matched' },
-    { color: 'var(--accent)', text: <><b>kai</b> hasn't replied yet</>, sub: 'waiting · nudge available' },
-    { color: 'hsl(200 12% 60%)', text: 'Intent posted · 5 candidates found', sub: '3 days ago', last: true },
-  ];
+  const load = () => {
+    setLoading(true);
+    intents.get(id)
+      .then(setIntent)
+      .catch(err => { if (err?.status === 404) setNotFound(true); })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(load, [id]);
+
+  const act = async (matchAgentId, action) => {
+    if (busyMatch) return;
+    setBusyMatch(matchAgentId);
+    try {
+      await intents.action(id, matchAgentId, action);
+      load(); // refresh statuses
+    } catch {
+      setBusyMatch(null);
+    }
+  };
+
+  if (loading) {
+    return <div style={{ maxWidth: 560, margin: '0 auto', padding: 40, textAlign: 'center', color: 'var(--mfg)' }}>Loading intent…</div>;
+  }
+  if (notFound || !intent) {
+    return (
+      <div style={{ maxWidth: 560, margin: '0 auto', padding: 40, textAlign: 'center', color: 'var(--mfg)' }}>
+        <div style={{ marginBottom: 16 }}>Intent not found.</div>
+        <button onClick={() => nav('/intents')} style={{ background: 'var(--card)', border: '1px solid var(--border)', color: 'var(--fg)', padding: '8px 15px', borderRadius: 9, cursor: 'pointer', fontFamily: "'Space Grotesk'" }}>← All intents</button>
+      </div>
+    );
+  }
+
+  const title = intent.raw_text || intent.text || 'Intent';
+  const parsed = intent.parsed || {};
+  const matches = intent.matches || [];
+  const status = intent.status || 'open';
+  const keywords = parsed.keywords || [];
 
   return (
     <div style={{ maxWidth: 560, margin: '0 auto', padding: 24 }}>
@@ -22,88 +57,71 @@ export default function IntentDetail() {
         <div style={{ padding: '22px 24px 18px', borderBottom: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
             <Badge type="INTENT" />
-            <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: resolved ? 'var(--mfg)' : 'var(--success)' }}>
-              {resolved ? '✓ RESOLVED' : '● OPEN · 3 days'}
+            <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: status === 'resolved' ? 'var(--mfg)' : 'var(--success)' }}>
+              ● {status.toUpperCase()}
             </span>
           </div>
-          <h2 style={{ fontFamily: "'Space Grotesk'", fontWeight: 700, fontSize: 22, letterSpacing: '-.3px', margin: '0 0 4px', lineHeight: 1.2, color: 'var(--fg)' }}>Looking for a Rust / WASM developer</h2>
-          <div style={{ fontSize: 13, color: 'var(--mfg)' }}>posted by <b style={{ color: 'var(--fg)' }}>toby</b> · #wasm #rust #pairing</div>
+          <h2 style={{ fontFamily: "'Space Grotesk'", fontWeight: 700, fontSize: 22, letterSpacing: '-.3px', margin: '0 0 8px', lineHeight: 1.2, color: 'var(--fg)' }}>{title}</h2>
+          <div style={{ fontSize: 13, color: 'var(--mfg)' }}>
+            {parsed.category ? <>category <b style={{ color: 'var(--fg)' }}>{parsed.category}</b> · </> : null}
+            urgency <b style={{ color: 'var(--fg)' }}>{parsed.urgency || 'unknown'}</b>
+          </div>
+          {keywords.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+              {keywords.map(k => (
+                <span key={k} style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, background: 'var(--muted)', color: 'var(--mfg)', padding: '3px 8px', borderRadius: 6 }}>#{k}</span>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div style={{ padding: '16px 24px', background: 'var(--muted)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', textAlign: 'center' }}>
-          {[
-            { val: 5, label: 'matches', color: 'var(--primary)' },
-            { val: 2, label: 'intros made', color: 'var(--primary)' },
-            { val: 1, label: 'awaiting reply', color: 'var(--accent)' },
-          ].map((s, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              {i > 0 && <div style={{ width: 1, height: 40, background: 'var(--border)' }} />}
-              <div>
-                <div style={{ fontFamily: "'Space Grotesk'", fontWeight: 700, fontSize: 22, color: s.color }}>{s.val}</div>
-                <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 10, color: 'var(--mfg)', marginTop: 2 }}>{s.label}</div>
-              </div>
-            </div>
-          ))}
+        <div style={{ padding: '16px 24px', background: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>
+          <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 12, color: 'var(--mfg)' }}>
+            {intent.match_count ?? matches.length} match{(intent.match_count ?? matches.length) === 1 ? '' : 'es'}
+          </span>
         </div>
 
         <div style={{ padding: '18px 24px' }}>
-          <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 10, letterSpacing: '.5px', color: 'var(--mfg)', marginBottom: 14 }}>LIFECYCLE</div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {timeline.map((t, i) => (
-              <div key={i} style={{ display: 'flex', gap: 12 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: t.color }} />
-                  {!t.last && <span style={{ flex: 1, width: 2, background: 'var(--border)' }} />}
-                </div>
-                <div style={{ paddingBottom: t.last ? 0 : 16 }}>
-                  <div style={{ fontSize: '13.5px', lineHeight: 1.4, color: 'var(--fg)' }}>{t.text}</div>
-                  <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--mfg)', marginTop: 2 }}>
-                    {t.sub.split(' · ').map((part, j) => (
-                      <span key={j}>{j > 0 && ' · '}<span style={t.subColor && j === t.sub.split(' · ').length - 1 ? { color: t.subColor } : {}}>{part}</span></span>
-                    ))}
+          <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 10, letterSpacing: '.5px', color: 'var(--mfg)', marginBottom: 12 }}>MATCHES</div>
+          {matches.length === 0 ? (
+            <div style={{ fontSize: 13, color: 'var(--mfg)' }}>
+              No matches yet. Agents are still searching — check back shortly.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {matches.map((m) => {
+                const mid = m.agent_id || m.id;
+                const score = m.similarity_score != null ? Math.round(m.similarity_score * 100) : null;
+                const done = m.status === 'accepted' || m.status === 'rejected';
+                return (
+                  <div key={mid} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <span style={{ fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: 14, color: 'var(--fg)' }}>{m.agent_name || mid}</span>
+                      {score != null && <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--success)' }}>{score}% match</span>}
+                      {m.status && <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--mfg)' }}>· {m.status}</span>}
+                    </div>
+                    {Array.isArray(m.capabilities) && m.capabilities.length > 0 && (
+                      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--mfg)', marginBottom: 8 }}>{m.capabilities.join(', ')}</div>
+                    )}
+                    {!done && (
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={() => act(mid, 'accept')} disabled={busyMatch === mid} style={{
+                          fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: 12, color: '#fff',
+                          background: 'var(--success)', border: 'none', padding: '6px 14px', borderRadius: 8,
+                          cursor: busyMatch === mid ? 'default' : 'pointer', opacity: busyMatch === mid ? 0.6 : 1,
+                        }}>Accept</button>
+                        <button onClick={() => act(mid, 'reject')} disabled={busyMatch === mid} style={{
+                          fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: 12, color: 'var(--mfg)',
+                          background: 'transparent', border: '1px solid var(--border)', padding: '6px 14px', borderRadius: 8,
+                          cursor: busyMatch === mid ? 'default' : 'pointer', opacity: busyMatch === mid ? 0.6 : 1,
+                        }}>Reject</button>
+                      </div>
+                    )}
                   </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div style={{ padding: '14px 24px 18px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center' }}>
-          <button
-            onClick={() => setNudged(true)}
-            disabled={nudged}
-            style={{
-              fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: 13,
-              color: '#fff',
-              background: nudged ? 'var(--mfg)' : 'var(--accent)',
-              padding: '10px 18px', border: 'none', borderRadius: 9,
-              cursor: nudged ? 'default' : 'pointer',
-              opacity: nudged ? 0.6 : 1,
-            }}
-          >{nudged ? 'Nudged ✓' : 'Nudge kai'}</button>
-          <button
-            onClick={() => setDelegated(true)}
-            disabled={delegated}
-            style={{
-              fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: 13,
-              color: delegated ? 'var(--success)' : 'var(--fg)',
-              border: '1px solid var(--border)',
-              background: 'var(--card)',
-              padding: '10px 16px', borderRadius: 9,
-              cursor: delegated ? 'default' : 'pointer',
-            }}
-          >{delegated ? 'Agent handling ✓' : 'Let agent handle'}</button>
-          <button
-            onClick={() => setResolved(true)}
-            disabled={resolved}
-            style={{
-              marginLeft: 'auto',
-              fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: 13,
-              color: resolved ? 'var(--mfg)' : 'var(--success)',
-              background: 'none', border: 'none',
-              cursor: resolved ? 'default' : 'pointer',
-            }}
-          >{resolved ? 'Resolved ✓' : 'Mark resolved'}</button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
