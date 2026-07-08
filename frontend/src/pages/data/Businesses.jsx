@@ -25,7 +25,6 @@ export default function Businesses() {
       .finally(() => setLoading(false));
   }, [city, category, search]);
 
-  const rows = data?.rows?.map(r => [r[0] || '', r[3] || '', r[5] || '', r[2] || '']) || [];
 
   return (
     <div style={{ maxWidth: 920, padding: '26px 30px' }}>
@@ -33,6 +32,9 @@ export default function Businesses() {
         <h1 style={{ fontFamily: "'Space Grotesk'", fontWeight: 700, fontSize: 24, letterSpacing: '-.5px', margin: 0, color: 'var(--fg)', whiteSpace: 'nowrap' }}>Business Directory</h1>
         <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--mfg)', whiteSpace: 'nowrap' }}>{data?.row_count != null ? `${data.row_count.toLocaleString()} SMBs` : 'SC County'}</span>
       </div>
+      {data?.description && (
+        <p style={{ fontSize: 13, color: 'var(--mfg)', margin: '0 0 4px', maxWidth: 620, lineHeight: 1.5 }}>{data.description}</p>
+      )}
       <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--primary)', marginBottom: 16 }}>GET /api/data/businesses?q=&city=&category=</div>
 
       <div style={{
@@ -76,9 +78,10 @@ export default function Businesses() {
       ) : (
         <>
           <DataTable
-            columns={['NAME', 'CATEGORY', 'CITY', 'NAICS']}
-            gridTemplate="2fr 1.2fr 1fr 1fr"
-            rows={rows}
+            columns={data?.columns || []}
+            fields={(data?.fields || []).filter(f => ['business_name', 'category', 'city', 'address'].includes(f.key))}
+            rows={data?.rows || []}
+            gridTemplate="2fr 1.2fr 1fr 1.5fr"
           />
           <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--mfg)', marginTop: 10 }}>
             Showing {data?.row_count || 0} rows · {data?.execution_time_ms?.toFixed(0) || '—'} ms
