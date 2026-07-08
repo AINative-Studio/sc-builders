@@ -41,6 +41,10 @@ export async function api(path, opts = {}, _retried = false) {
     if (res.status === 401 && !_retried && !path.includes('/api/auth/refresh')) {
       const newToken = await refreshAccessToken();
       if (newToken) return api(path, opts, true);
+      // Refresh unavailable/failed and we do have a (stale) token: the session
+      // has expired. Clear it and send the user to login instead of surfacing
+      // a wall of 401s that leave the page half-broken.
+      if (token) handleSessionExpired();
     }
     const err = new Error(`${res.status} ${res.statusText}`);
     err.status = res.status;
@@ -48,6 +52,14 @@ export async function api(path, opts = {}, _retried = false) {
     throw err;
   }
   return res.json();
+}
+
+function handleSessionExpired() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('refresh_token');
+  if (typeof window !== 'undefined' && !window.location.pathname.endsWith('/login')) {
+    window.location.assign('/login');
+  }
 }
 
 export const get = (path) => api(path);
