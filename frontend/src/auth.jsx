@@ -13,12 +13,14 @@ export function AuthProvider({ children }) {
       body: { email, password },
     });
     localStorage.setItem('token', data.access_token);
+    if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
     setToken(data.access_token);
     setUser(data.user || { email });
   }, []);
 
   const logout = useCallback(() => {
     localStorage.removeItem('token');
+    localStorage.removeItem('refresh_token');
     setToken(null);
     setUser(null);
   }, []);

@@ -1,15 +1,47 @@
 const BASE = import.meta.env.VITE_API_URL || '';
 
-export async function api(path, opts = {}) {
+// Single-flight refresh: if several requests 401 at once, they share one
+// refresh call rather than each firing their own.
+let refreshInFlight = null;
+
+async function refreshAccessToken() {
+  const refresh_token = localStorage.getItem('refresh_token');
+  if (!refresh_token) return null;
+  if (!refreshInFlight) {
+    refreshInFlight = fetch(`${BASE}/api/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token }),
+    })
+      .then(async (r) => {
+        if (!r.ok) return null;
+        const data = await r.json();
+        if (data.access_token) localStorage.setItem('token', data.access_token);
+        if (data.refresh_token) localStorage.setItem('refresh_token', data.refresh_token);
+        return data.access_token || null;
+      })
+      .catch(() => null)
+      .finally(() => { refreshInFlight = null; });
+  }
+  return refreshInFlight;
+}
+
+export async function api(path, opts = {}, _retried = false) {
   const token = localStorage.getItem('token');
   const headers = { ...opts.headers };
   if (token) headers['Authorization'] = `Bearer ${token}`;
-  if (opts.body && typeof opts.body === 'object' && !(opts.body instanceof FormData)) {
+  let body = opts.body;
+  if (body && typeof body === 'object' && !(body instanceof FormData)) {
     headers['Content-Type'] = 'application/json';
-    opts.body = JSON.stringify(opts.body);
+    body = JSON.stringify(body);
   }
-  const res = await fetch(`${BASE}${path}`, { ...opts, headers });
+  const res = await fetch(`${BASE}${path}`, { ...opts, headers, body });
   if (!res.ok) {
+    // On 401, try a one-time refresh + retry (but never for the refresh call itself).
+    if (res.status === 401 && !_retried && !path.includes('/api/auth/refresh')) {
+      const newToken = await refreshAccessToken();
+      if (newToken) return api(path, opts, true);
+    }
     const err = new Error(`${res.status} ${res.statusText}`);
     err.status = res.status;
     try { err.detail = await res.json(); } catch {}
