@@ -14,27 +14,46 @@ export default function EventDetail() {
   const [attendees, setAttendees] = useState([]);
   const [rsvp, setRsvp] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [me, setMe] = useState(null);
+
+  const loadAttendees = () =>
+    get(`/api/events/${id}/attendees`)
+      .then(att => setAttendees(att?.items || att?.data || []))
+      .catch(() => setAttendees([]));
 
   useEffect(() => {
     Promise.all([
       get(`/api/events/${id}`).catch(() => null),
       get(`/api/events/${id}/attendees`).catch(() => ({ items: [] })),
-    ]).then(([ev, att]) => {
+      get('/api/members/me').catch(() => null),
+    ]).then(([ev, att, meRes]) => {
       if (ev) setEvent(ev);
-      setAttendees(att?.items || att?.data || []);
+      const list = att?.items || att?.data || [];
+      setAttendees(list);
+      const myId = meRes?.row_data?.user_id || meRes?.user_id || meRes?.id;
+      setMe(myId);
+      // Reflect an existing RSVP so the button shows as active on reload.
+      const mine = list.find(a => (a.user_id || a.id) === myId);
+      if (mine?.status) setRsvp(mine.status);
     }).finally(() => setLoading(false));
   }, [id]);
 
   async function handleRsvp(status) {
+    const next = rsvp === status ? null : status;
     setRsvp(status);
     try {
       await post(`/api/events/${id}/rsvp`, { status });
-    } catch {}
+      await loadAttendees(); // refresh count/list
+    } catch {
+      setRsvp(next === status ? null : rsvp);
+    }
   }
 
   function formatDate(ev) {
-    if (!ev?.date && !ev?.start_time) return '';
-    const d = new Date(ev.start_time || ev.date);
+    const raw = ev?.starts_at || ev?.start_time || ev?.date;
+    if (!raw) return '';
+    const d = new Date(raw);
+    if (isNaN(d)) return '';
     return d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase()
       + ' · ' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
@@ -65,7 +84,8 @@ export default function EventDetail() {
     );
   }
 
-  const goingCount = event.attendee_count || attendees.length || 0;
+  const going = attendees.filter(a => (a.status || 'going') === 'going');
+  const goingCount = going.length;
 
   return (
     <div style={{ maxWidth: 640, margin: '0 auto', padding: 24 }}>
@@ -88,10 +108,10 @@ export default function EventDetail() {
             <p style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--fg)', margin: '0 0 18px' }}>{event.description}</p>
           )}
           <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 10, letterSpacing: '.5px', color: 'var(--mfg)', marginBottom: 10 }}>{goingCount} GOING</div>
-          {attendees.length > 0 && (
+          {going.length > 0 && (
             <div style={{ display: 'flex', marginBottom: 20 }}>
-              {attendees.slice(0, 5).map((a, i) => {
-                const name = a.display_name || a.name || a.user_id || '';
+              {going.slice(0, 5).map((a, i) => {
+                const name = a.user_name || a.display_name || a.name || a.user_id || '';
                 const letter = name.charAt(0).toUpperCase() || '?';
                 return (
                   <span key={i} style={{
@@ -122,6 +142,7 @@ export default function EventDetail() {
         <div style={{ padding: '14px 24px 18px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center' }}>
           <button onClick={() => handleRsvp('going')} style={btnStyle(rsvp === 'going')}>Going</button>
           <button onClick={() => handleRsvp('maybe')} style={btnStyle(rsvp === 'maybe')}>Maybe</button>
+          <button onClick={() => handleRsvp('not_going')} style={btnStyle(rsvp === 'not_going')}>Can't go</button>
         </div>
       </div>
     </div>
