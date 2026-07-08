@@ -49,7 +49,8 @@ async def get_row(table: str, row_id: str, *, bearer_token: str | None = None) -
 
 async def update_row(table: str, row_id: str, data: dict, *, bearer_token: str | None = None) -> dict:
     path = f"{_table_path(table)}/rows/{row_id}"
-    r = await api_request("PATCH", path, json={"row_data": data}, bearer_token=bearer_token)
+    # ZeroDB row updates are PUT, not PATCH (PATCH returns 405 Method Not Allowed).
+    r = await api_request("PUT", path, json={"row_data": data}, bearer_token=bearer_token)
     r.raise_for_status()
     return r.json()
 

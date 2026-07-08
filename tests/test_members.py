@@ -97,7 +97,7 @@ class TestUpdateMyProfile:
         mock_api.post(f"{_table_prefix()}/query").mock(
             return_value=httpx.Response(200, json={"data": [MEMBER_ROW]})
         )
-        mock_api.patch(f"{_table_prefix()}/rows/mem-1").mock(
+        mock_api.put(f"{_table_prefix()}/rows/mem-1").mock(
             return_value=httpx.Response(200, json={**MEMBER_ROW, "display_name": "Updated"})
         )
         r = client.patch(
@@ -115,7 +115,7 @@ class TestUpdateMyProfile:
         mock_api.post(f"{_table_prefix()}/query").mock(
             return_value=httpx.Response(200, json={"data": [row]})
         )
-        route = mock_api.patch(f"{_table_prefix()}/rows/row-9").mock(
+        route = mock_api.put(f"{_table_prefix()}/rows/row-9").mock(
             return_value=httpx.Response(200, json={**row, "display_name": "New"})
         )
         r = client.patch("/api/members/me", json={"display_name": "New"}, headers=AUTH_HEADER)

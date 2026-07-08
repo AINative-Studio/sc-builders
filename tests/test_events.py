@@ -90,7 +90,7 @@ class TestGetEvent:
 class TestUpdateEvent:
     def test_update_success(self, client, mock_api):
         stub_auth_me(mock_api)
-        mock_api.patch(f"{_evt_table()}/rows/evt-1").mock(
+        mock_api.put(f"{_evt_table()}/rows/evt-1").mock(
             return_value=httpx.Response(200, json={"id": "evt-1"})
         )
         r = client.patch(
@@ -148,7 +148,7 @@ class TestRSVP:
                 "data": [{"id": "rsvp-1", "row_data": {"status": "going"}}]
             })
         )
-        mock_api.patch(f"{_rsvp_table()}/rows/rsvp-1").mock(
+        mock_api.put(f"{_rsvp_table()}/rows/rsvp-1").mock(
             return_value=httpx.Response(200, json={"id": "rsvp-1"})
         )
         r = client.post(

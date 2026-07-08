@@ -128,7 +128,7 @@ class TestPinnedAnnouncements:
 class TestUpdateAnnouncement:
     def test_update_pin(self, client, mock_api):
         stub_auth_me(mock_api)
-        mock_api.patch(f"{_table_prefix()}/rows/ann-1").mock(
+        mock_api.put(f"{_table_prefix()}/rows/ann-1").mock(
             return_value=httpx.Response(200, json={**ANNOUNCEMENT_ROW, "pinned": True})
         )
         r = client.patch(
