@@ -29,17 +29,17 @@ export default function Profile() {
     setNotFound(false);
     setEditing(false);
     (async () => {
-      // Resolve who I am first (AINative profile) so we know if this is self.
-      let myId = null;
+      // Resolve who I am (once) so we know if this is self.
+      let meProf = null;
       try {
-        const meProf = await profileApi.me();
-        myId = meProf?.id;
-        if (live) setMeId(myId);
+        meProf = await profileApi.me();
+        if (live) setMeId(meProf?.id);
       } catch { /* not fatal */ }
 
-      // Load the target profile. If it's me, /me returns the freshest copy.
+      // Load the target profile. Reuse the /me result when viewing self to
+      // avoid a second slow round-trip.
       try {
-        const p = (myId && myId === uid) ? await profileApi.me() : await profileApi.byId(uid);
+        const p = (meProf && meProf.id === uid) ? meProf : await profileApi.byId(uid);
         if (!live) return;
         setMember(p);
         setStats({
