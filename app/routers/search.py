@@ -3,6 +3,7 @@
 Refs #37
 """
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, Query
@@ -36,8 +37,8 @@ async def keyword_search(
     token: str = Depends(get_token),
 ):
     tables = [search_type] if search_type != "all" else _SEARCHABLE_TABLES
-    results: dict[str, list] = {}
-    for table in tables:
+
+    async def _search_table(table: str):
         try:
             resp = await query_rows(
                 table,
@@ -45,13 +46,14 @@ async def keyword_search(
                 limit=limit,
                 bearer_token=token,
             )
-            items = [
-                row.get("row_data", row) for row in resp.get("data", [])
-            ]
-            if items:
-                results[table] = items
+            return table, [row.get("row_data", row) for row in resp.get("data", [])]
         except Exception:
             logger.debug("Keyword search on %s failed, skipping", table)
+            return table, []
+
+    # Query all tables concurrently — serial round-trips made this ~4x slower.
+    pairs = await asyncio.gather(*(_search_table(t) for t in tables))
+    results = {table: items for table, items in pairs if items}
     return {"query": q, "results": results, "total": sum(len(v) for v in results.values())}
 
 
@@ -76,14 +78,22 @@ async def prospect_search(
     token: str = Depends(get_token),
 ):
     try:
-        resp = await api_request(
-            "POST",
-            "/api/v1/public/data/prospect",
-            json={"query": q, "limit": limit * 3},
-            bearer_token=token,
+        # Prospect is an LLM-backed upstream and can take ~30s. Cap it so the
+        # client gets a fast, graceful empty result rather than a hung request.
+        resp = await asyncio.wait_for(
+            api_request(
+                "POST",
+                "/api/v1/public/data/prospect",
+                json={"query": q, "limit": limit * 3},
+                bearer_token=token,
+            ),
+            timeout=18.0,
         )
         resp.raise_for_status()
         data = resp.json()
+    except asyncio.TimeoutError:
+        logger.warning("Prospect search timed out for q=%s", q)
+        return {"query": q, "results": [], "total": 0, "timed_out": True}
     except Exception:
         logger.exception("Prospect search failed for q=%s", q)
         return {"query": q, "results": [], "total": 0}
