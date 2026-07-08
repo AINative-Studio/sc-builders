@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { get, post } from '../api';
+import { useAuth } from '../auth';
 
 const AVATAR_COLORS = [
   'var(--accent)', 'var(--success)', 'var(--primary)',
@@ -98,10 +99,10 @@ function HistoryView({ messages, loading }) {
         <div style={{ textAlign: 'center', color: 'var(--mfg)', padding: 30 }}>No messages yet — be the first to say something.</div>
       )}
       {messages.map((m, i) => {
-        const name = m.author_name || m.author_id || 'unknown';
+        const name = m.sender_name || m.sender_id || 'unknown';
         const letter = name.charAt(0).toUpperCase();
-        const time = m.created_at
-          ? new Date(m.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+        const time = (m.sent_at || m.created_at)
+          ? new Date(m.sent_at || m.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
           : '';
         return (
           <div key={m.id || m._id || i} style={{ display: 'flex', gap: 11 }}>
@@ -121,12 +122,14 @@ function HistoryView({ messages, loading }) {
 }
 
 export default function Chat() {
+  const { user } = useAuth();
   const [tab, setTab] = useState('state');
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const slug = 'general';
+  const senderName = user?.name || user?.email || '';
   const wsRef = useRef(null);
   const bottomRef = useRef(null);
 
@@ -141,24 +144,38 @@ export default function Chat() {
   }, [slug]);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) return;
-    const base = import.meta.env.VITE_API_URL || window.location.origin;
-    const wsUrl = base.replace(/^http/, 'ws') + `/ws/chat?token=${token}`;
-    try {
-      const ws = new WebSocket(wsUrl);
+    let ws;
+    let cancelled = false;
+
+    (async () => {
+      // /ws/chat only accepts a channel-scoped token minted via ws-token —
+      // the plain login access_token is signed by a different issuer and
+      // always gets rejected with close code 4001.
+      let wsToken;
+      try {
+        const res = await post(`/api/channels/${slug}/ws-token`, {});
+        wsToken = res.token;
+      } catch {
+        return;
+      }
+      if (cancelled || !wsToken) return;
+
+      const base = import.meta.env.VITE_API_URL || window.location.origin;
+      const wsUrl = base.replace(/^http/, 'ws') + `/ws/chat?token=${wsToken}`;
+      ws = new WebSocket(wsUrl);
       wsRef.current = ws;
       ws.onmessage = (e) => {
         try {
           const msg = JSON.parse(e.data);
-          if (msg.type === 'message' && msg.data) {
-            setMessages(prev => [...prev, msg.data]);
+          if (msg.type === 'message') {
+            setMessages(prev => [...prev, msg]);
           }
         } catch {}
       };
-      return () => { ws.close(); };
-    } catch {}
-  }, []);
+    })();
+
+    return () => { cancelled = true; ws?.close(); };
+  }, [slug]);
 
   useEffect(() => {
     if (tab === 'history') bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -166,13 +183,24 @@ export default function Chat() {
 
   async function sendMessage(e) {
     e.preventDefault();
-    if (!input.trim() || sending) return;
+    const content = input.trim();
+    if (!content || sending) return;
     setSending(true);
-    try {
-      const msg = await post(`/api/channels/${slug}/messages`, { content: input.trim() });
-      setMessages(prev => [...prev, msg]);
-      setInput('');
-    } catch {}
+    // Send over the WS connection, not REST — only the WS receive-loop
+    // persists *and* broadcasts to other connected clients. The REST
+    // POST endpoint only persists, so it never reaches anyone else live.
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      try {
+        wsRef.current.send(JSON.stringify({ content, sender_name: senderName }));
+        setInput('');
+      } catch {}
+    } else {
+      try {
+        const msg = await post(`/api/channels/${slug}/messages`, { content });
+        setMessages(prev => [...prev, msg.row_data ? { ...msg.row_data, id: msg.row_id } : msg]);
+        setInput('');
+      } catch {}
+    }
     setSending(false);
   }
 
@@ -188,9 +216,8 @@ export default function Chat() {
       <div style={{ flexShrink: 0, padding: '18px 0 14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontFamily: "'Space Grotesk'", fontWeight: 700, fontSize: 18, color: 'var(--fg)' }}>
-            <span style={{ color: 'var(--primary)' }}>#</span>wasm-pairing
+            <span style={{ color: 'var(--primary)' }}>#</span>{slug}
           </span>
-          <span style={{ fontFamily: "'JetBrains Mono'", fontSize: '10.5px', background: 'hsl(158 52% 40% / .16)', color: 'var(--success)', padding: '3px 8px', borderRadius: 20 }}>● active intent</span>
           <div style={{ marginLeft: 'auto', display: 'flex', background: 'var(--muted)', borderRadius: 9, padding: 3 }}>
             <button onClick={() => setTab('state')} style={tabStyle('state')}>State</button>
             <button onClick={() => setTab('history')} style={tabStyle('history')}>History <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, opacity: .7 }}>{messages.length || ''}</span></button>
