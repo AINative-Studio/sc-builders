@@ -39,3 +39,12 @@ export const social = {
   myFriendRequests: () => get('/api/social/me/friend-requests'),
   myStats: () => get('/api/social/me/stats'),
 };
+
+// Intent casting — /api/intents/* (proxies AINative platform intent-casting API)
+export const intents = {
+  create: (body) => post('/api/intents', body),
+  list: (limit = 20, skip = 0) => get(`/api/intents?limit=${limit}&skip=${skip}`),
+  get: (id) => get(`/api/intents/${id}`),
+  action: (id, matchAgentId, action, message) =>
+    post(`/api/intents/${id}/action/${matchAgentId}`, { action, ...(message ? { message } : {}) }),
+};

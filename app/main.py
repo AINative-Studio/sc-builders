@@ -17,6 +17,7 @@ from app.routers import (
     comments,
     data,
     events,
+    intents,
     members,
     messages,
     notifications,
@@ -67,6 +68,7 @@ app.include_router(comments.router)
 app.include_router(members.router)
 app.include_router(ws.router)
 app.include_router(data.router)
+app.include_router(intents.router)
 
 
 @app.get("/health", tags=["Health"])
