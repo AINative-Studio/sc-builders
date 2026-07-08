@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import FilterChips from '../components/FilterChips';
-import { get } from '../api';
+import FollowButton from '../components/FollowButton';
+import { get, social } from '../api';
+
+// Pull a member's stable id out of the various shapes the API returns.
+const memberId = (m) => m.user_id || m.id || m._id;
 
 const AVATAR_COLORS = [
   'var(--accent)', 'var(--success)', 'hsl(280 40% 55%)',
@@ -12,6 +16,7 @@ export default function Members() {
   const nav = useNavigate();
   const [filter, setFilter] = useState('all');
   const [members, setMembers] = useState([]);
+  const [followingIds, setFollowingIds] = useState(() => new Set());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,6 +28,24 @@ export default function Members() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [filter]);
+
+  // Load who I already follow so cards seed the right button state.
+  // There's no `me` alias on /api/social — resolve self id via /api/members/me first.
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const meRes = await get('/api/members/me');
+        const meId = meRes?.row_data?.user_id || meRes?.user_id || meRes?.id;
+        if (!meId) return;
+        const res = await social.following(meId);
+        if (!live) return;
+        const list = res.following || res.items || [];
+        setFollowingIds(new Set(list.map(f => f.user_id || f.id || f.uid).filter(Boolean)));
+      } catch { /* social state is non-critical to the directory */ }
+    })();
+    return () => { live = false; };
+  }, []);
 
   return (
     <div style={{ maxWidth: 760, margin: '0 auto', padding: '26px 24px' }}>
@@ -41,11 +64,11 @@ export default function Members() {
           {members.map((m, i) => {
             const name = m.display_name || m.name || m.handle || '';
             const handle = m.handle || m.display_name || '';
-            const skills = m.skills || '';
+            const skills = Array.isArray(m.skills) ? m.skills.join(', ') : (m.skills || '');
             const letter = name.charAt(0).toUpperCase() || '?';
-            const id = m.id || m._id || m.user_id || name;
+            const id = memberId(m) || name;
             return (
-              <div key={id} onClick={() => nav(`/profile/${handle || name}`)} style={{
+              <div key={id} onClick={() => nav(`/profile/${id}`)} style={{
                 textAlign: 'left', background: 'var(--card)', border: '1px solid var(--border)',
                 borderRadius: 12, padding: 15,
                 display: 'flex', gap: 12, alignItems: 'center', cursor: 'pointer',
@@ -62,6 +85,9 @@ export default function Members() {
                     @{handle}{skills ? ` · ${skills}` : ''}
                   </div>
                 </div>
+                {memberId(m) && (
+                  <FollowButton uid={memberId(m)} initialFollowing={followingIds.has(memberId(m))} />
+                )}
               </div>
             );
           })}

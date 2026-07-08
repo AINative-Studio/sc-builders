@@ -97,7 +97,7 @@ class TestUpdateMyProfile:
         mock_api.post(f"{_table_prefix()}/query").mock(
             return_value=httpx.Response(200, json={"data": [MEMBER_ROW]})
         )
-        mock_api.patch(f"{_table_prefix()}/rows/mem-1").mock(
+        mock_api.put(f"{_table_prefix()}/rows/mem-1").mock(
             return_value=httpx.Response(200, json={**MEMBER_ROW, "display_name": "Updated"})
         )
         r = client.patch(
@@ -106,6 +106,21 @@ class TestUpdateMyProfile:
             headers=AUTH_HEADER,
         )
         assert r.status_code == 200
+
+    def test_update_row_keyed_by_row_id(self, client, mock_api):
+        # Real ZeroDB rows expose the id as `row_id`, not `id`. The update must
+        # resolve that, otherwise it PATCHes .../rows/None and 500s (prod bug).
+        stub_auth_me(mock_api)
+        row = {"row_id": "row-9", "user_id": "user-001", "display_name": "Tester"}
+        mock_api.post(f"{_table_prefix()}/query").mock(
+            return_value=httpx.Response(200, json={"data": [row]})
+        )
+        route = mock_api.put(f"{_table_prefix()}/rows/row-9").mock(
+            return_value=httpx.Response(200, json={**row, "display_name": "New"})
+        )
+        r = client.patch("/api/members/me", json={"display_name": "New"}, headers=AUTH_HEADER)
+        assert r.status_code == 200
+        assert route.called
 
     def test_create_profile_on_first_update(self, client, mock_api):
         stub_auth_me(mock_api)

@@ -8,8 +8,9 @@ FAKE_COMMENT = {"id": "cmt-1", "content": "Great meetup!", "content_type": "even
 
 class TestCreateComment:
     def test_create_success(self, client, mock_api):
+        import json as _json
         stub_auth_me(mock_api)
-        mock_api.post("/api/v1/community/comments").mock(
+        route = mock_api.post("/api/v1/public/v1/comments").mock(
             return_value=httpx.Response(201, json=FAKE_COMMENT)
         )
         r = client.post(
@@ -19,6 +20,10 @@ class TestCreateComment:
         )
         assert r.status_code == 201
         assert r.json()["content"] == "Great meetup!"
+        # Upstream expects the field named `comment`, not `content`.
+        sent = _json.loads(route.calls.last.request.content)
+        assert sent["comment"] == "Great meetup!"
+        assert sent["content_type"] == "event"
 
     def test_create_no_auth(self, client, mock_api):
         r = client.post(
@@ -48,14 +53,14 @@ class TestCreateComment:
 
 class TestListComments:
     def test_list_success(self, client, mock_api):
-        mock_api.get("/api/v1/community/comments/event/evt-1").mock(
+        mock_api.get("/api/v1/public/v1/comments/event/evt-1").mock(
             return_value=httpx.Response(200, json={"comments": [FAKE_COMMENT]})
         )
         r = client.get("/api/comments/event/evt-1", headers=AUTH_HEADER)
         assert r.status_code == 200
 
     def test_list_with_pagination(self, client, mock_api):
-        mock_api.get("/api/v1/community/comments/channel/ch-1").mock(
+        mock_api.get("/api/v1/public/v1/comments/channel/ch-1").mock(
             return_value=httpx.Response(200, json={"comments": []})
         )
         r = client.get("/api/comments/channel/ch-1?limit=10&offset=5", headers=AUTH_HEADER)
@@ -65,7 +70,7 @@ class TestListComments:
 class TestDeleteComment:
     def test_delete_success(self, client, mock_api):
         stub_auth_me(mock_api)
-        mock_api.delete("/api/v1/community/comments/cmt-1").mock(
+        mock_api.delete("/api/v1/public/v1/comments/cmt-1").mock(
             return_value=httpx.Response(200, json={"ok": True})
         )
         r = client.delete("/api/comments/cmt-1", headers=AUTH_HEADER)
@@ -73,7 +78,7 @@ class TestDeleteComment:
 
     def test_delete_not_found(self, client, mock_api):
         stub_auth_me(mock_api)
-        mock_api.delete("/api/v1/community/comments/bad").mock(
+        mock_api.delete("/api/v1/public/v1/comments/bad").mock(
             return_value=httpx.Response(404, json={"detail": "not found"})
         )
         r = client.delete("/api/comments/bad", headers=AUTH_HEADER)

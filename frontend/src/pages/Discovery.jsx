@@ -69,7 +69,10 @@ export default function Discovery() {
       </form>
 
       {loading && (
-        <div style={{ padding: 30, textAlign: 'center', color: 'var(--mfg)' }}>Searching...</div>
+        <div style={{ padding: 30, textAlign: 'center', color: 'var(--mfg)' }}>
+          Searching the community graph…
+          <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, marginTop: 6, opacity: 0.7 }}>prospect discovery can take a few seconds</div>
+        </div>
       )}
 
       {!loading && searched && results.length === 0 && (

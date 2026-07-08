@@ -142,6 +142,12 @@ class TestDataBusinesses:
         body = r.json()
         assert "rows" in body
         assert body["row_count"] == 1
+        # Enriched with human column metadata + dataset description.
+        assert body["dataset"] == "businesses"
+        assert body["description"]
+        labels = {f["key"]: f["label"] for f in body["fields"]}
+        assert labels["business_name"] == "Business"
+        assert labels["category"] == "Category"
 
     def test_list_businesses_sc_filter_applied(self, client, mock_api):
         route = mock_api.post(f"{LAKE_BASE}/query").mock(
@@ -202,13 +208,27 @@ class TestDataEconomic:
         mock_api.post(f"{LAKE_BASE}/query").mock(
             return_value=httpx.Response(200, json={
                 "columns": ["series_id", "date", "value"],
-                "rows": [["CASANC0URN", "2026-01-01", 4.2]],
-                "row_count": 1,
+                "rows": [
+                    ["CASANT3URN", "2026-01-01", 4.2],
+                    ["CASANT3URN", "2025-12-01", 4.4],
+                    ["CASANT3POP", "2026-01-01", 274.8],
+                ],
+                "row_count": 3,
                 "execution_time_ms": 50.0, "truncated": False,
             })
         )
         r = client.get("/api/data/economic", headers=AUTH_HEADER)
         assert r.status_code == 200
+        body = r.json()
+        # Enriched: grouped into labelled series with units + latest value.
+        assert body["dataset"] == "economic"
+        assert body["description"]
+        series = {s["series_id"]: s for s in body["series"]}
+        assert series["CASANT3URN"]["label"] == "Unemployment Rate"
+        assert series["CASANT3URN"]["unit"] == "%"
+        assert series["CASANT3URN"]["latest"] == 4.2
+        assert series["CASANT3URN"]["count"] == 2
+        assert series["CASANT3POP"]["label"] == "Resident Population"
 
     def test_economic_with_series(self, client, mock_api):
         mock_api.post(f"{LAKE_BASE}/query").mock(

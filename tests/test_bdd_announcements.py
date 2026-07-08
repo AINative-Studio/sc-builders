@@ -110,7 +110,7 @@ def when_list(bdd_client, ctx, channel):
 
 @when(parsers.parse("I update announcement \"{ann_id}\" with pinned true"))
 def when_pin(bdd_client, bdd_mock, ctx, ann_id):
-    bdd_mock.patch(f"{TABLE}/rows/{ann_id}").mock(
+    bdd_mock.put(f"{TABLE}/rows/{ann_id}").mock(
         return_value=httpx.Response(200, json={**ANN_ROW, "id": ann_id, "pinned": True})
     )
     ctx["response"] = bdd_client.patch(

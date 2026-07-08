@@ -11,8 +11,58 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
 from app.config import settings
+from app.data_catalog import (
+    DATASET_DESCRIPTIONS,
+    column_meta,
+    series_meta,
+)
 from app.deps import get_token
 from app.proxy import forward
+
+
+def _enrich_table(dataset: str, resp: dict) -> dict:
+    """Attach human column metadata + a dataset description to a tabular response."""
+    cols = resp.get("columns", [])
+    resp["dataset"] = dataset
+    resp["description"] = DATASET_DESCRIPTIONS.get(dataset, "")
+    resp["fields"] = column_meta(dataset, cols)
+    return resp
+
+
+def _enrich_economic(resp: dict) -> dict:
+    """Reshape the raw (series_id, date, value) rows into labelled series.
+
+    Returns both the labelled ``series`` list (presentation-ready) and the raw
+    ``columns``/``rows`` (so existing consumers keep working).
+    """
+    cols = resp.get("columns", [])
+    rows = resp.get("rows", [])
+    try:
+        i_id, i_date, i_val = cols.index("series_id"), cols.index("date"), cols.index("value")
+    except ValueError:
+        return _enrich_table("economic", resp)
+
+    grouped: dict[str, list] = {}
+    for r in rows:
+        grouped.setdefault(r[i_id], []).append((r[i_date], r[i_val]))
+
+    series = []
+    for sid, points in grouped.items():
+        meta = series_meta(sid)
+        values = [v for _, v in points]
+        series.append({
+            **meta,
+            "latest": values[0] if values else None,
+            "points": [{"date": d, "value": v} for d, v in points],
+            "count": len(points),
+        })
+    # Catalogued series first, then alphabetical — keeps the useful ones on top.
+    series.sort(key=lambda s: (s["category"] == "Other", s["label"]))
+
+    resp["dataset"] = "economic"
+    resp["description"] = DATASET_DESCRIPTIONS["economic"]
+    resp["series"] = series
+    return resp
 
 
 class LakehouseQueryBody(BaseModel):
@@ -87,10 +137,11 @@ async def list_businesses(
         f"FROM '{_SMB_PATH}'{where} "
         f"ORDER BY business_name LIMIT {limit}"
     )
-    return await forward(
+    resp = await forward(
         "POST", f"{_LAKE}/query", bearer_token=token,
         json={"sql": sql, "max_rows": limit},
     )
+    return _enrich_table("businesses", resp)
 
 
 @router.get("/housing")
@@ -103,10 +154,11 @@ async def housing_trends(
         f"FROM '{_HOUSING_PATH}' "
         f"ORDER BY date DESC LIMIT {limit}"
     )
-    return await forward(
+    resp = await forward(
         "POST", f"{_LAKE}/query", bearer_token=token,
         json={"sql": sql, "max_rows": limit},
     )
+    return _enrich_table("housing", resp)
 
 
 @router.get("/economic")
@@ -124,10 +176,11 @@ async def economic_indicators(
         f"FROM '{_FRED_PATH}'{where} "
         f"ORDER BY date DESC LIMIT {limit}"
     )
-    return await forward(
+    resp = await forward(
         "POST", f"{_LAKE}/query", bearer_token=token,
         json={"sql": sql, "max_rows": limit},
     )
+    return _enrich_economic(resp)
 
 
 @router.get("/parcels")
@@ -146,10 +199,11 @@ async def list_parcels(
         f"FROM '{_PARCELS_PATH}'{where} "
         f"ORDER BY apn LIMIT {limit}"
     )
-    return await forward(
+    resp = await forward(
         "POST", f"{_LAKE}/query", bearer_token=token,
         json={"sql": sql, "max_rows": limit},
     )
+    return _enrich_table("parcels", resp)
 
 
 @router.get("/traffic")
@@ -168,10 +222,11 @@ async def traffic_counts(
         f"FROM '{_TRAFFIC_PATH}'{where} "
         f"ORDER BY route LIMIT {limit}"
     )
-    return await forward(
+    resp = await forward(
         "POST", f"{_LAKE}/query", bearer_token=token,
         json={"sql": sql, "max_rows": limit},
     )
+    return _enrich_table("traffic", resp)
 
 
 @router.get("/safety")
@@ -189,7 +244,8 @@ async def safety_incidents(
         f"FROM '{_CRIME_PATH}'{where} "
         f"ORDER BY date DESC LIMIT {limit}"
     )
-    return await forward(
+    resp = await forward(
         "POST", f"{_LAKE}/query", bearer_token=token,
         json={"sql": sql, "max_rows": limit},
     )
+    return _enrich_table("safety", resp)

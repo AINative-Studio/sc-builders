@@ -19,11 +19,16 @@ export default function Safety() {
   }, [type]);
 
   const incidents = data?.rows || [];
+  // Resolve column positions by name so we never depend on column order.
+  const col = Object.fromEntries((data?.columns || []).map((c, i) => [c, i]));
 
   return (
     <div style={{ maxWidth: 820, padding: '26px 30px' }}>
       <h1 style={{ fontFamily: "'Space Grotesk'", fontWeight: 700, fontSize: 24, letterSpacing: '-.5px', margin: '0 0 4px', color: 'var(--fg)' }}>Safety Incidents</h1>
-      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--primary)', marginBottom: 16 }}>GET /api/data/safety?incident_type= · 42,507 incidents</div>
+      {data?.description && (
+        <p style={{ fontSize: 13, color: 'var(--mfg)', margin: '0 0 4px', maxWidth: 620, lineHeight: 1.5 }}>{data.description}</p>
+      )}
+      <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--primary)', marginBottom: 16 }}>GET /api/data/safety?incident_type=</div>
 
       <div style={{ display: 'flex', gap: 7, marginBottom: 16 }}>
         {TYPES.map(t => (
@@ -51,11 +56,11 @@ export default function Safety() {
                   fontFamily: "'JetBrains Mono'", fontSize: '9.5px',
                   padding: '2px 7px', borderRadius: 4,
                   background: 'hsl(14 78% 57% / .14)', color: 'var(--accent)',
-                }}>{r[1] || 'INCIDENT'}</span>
-                <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--mfg)', marginLeft: 'auto' }}>{r[2] || ''}</span>
+                }}>{r[col.type] || 'INCIDENT'}</span>
+                <span style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--mfg)', marginLeft: 'auto' }}>{r[col.date] || ''}</span>
               </div>
-              <div style={{ fontSize: 13, color: 'var(--fg)' }}>{r[0] || 'No description'}</div>
-              {r[3] && <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--mfg)', marginTop: 4 }}>{r[3]}</div>}
+              <div style={{ fontSize: 13, color: 'var(--fg)' }}>{r[col.description] || 'No description'}</div>
+              {r[col.address] && <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--mfg)', marginTop: 4 }}>{r[col.address]}</div>}
             </div>
           ))}
           <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--mfg)', marginTop: 4 }}>

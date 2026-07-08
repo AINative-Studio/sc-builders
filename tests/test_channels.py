@@ -129,7 +129,7 @@ class TestUpdateChannel:
         mock_api.post(f"{_table_prefix()}/query").mock(
             return_value=httpx.Response(200, json={"data": [CHANNEL_ROW]})
         )
-        mock_api.patch(f"{_table_prefix()}/rows/row-1").mock(
+        mock_api.put(f"{_table_prefix()}/rows/row-1").mock(
             return_value=httpx.Response(200, json={**CHANNEL_ROW, "topic": "updated"})
         )
         r = client.patch(
