@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { get, patch, social } from '../api';
+import { get, social, profile as profileApi } from '../api';
 import FollowButton from '../components/FollowButton';
-
-const AVAILABILITY = ['open_to_collab', 'busy', 'looking_for_work', 'hiring'];
 
 export default function Profile() {
   const nav = useNavigate();
@@ -11,7 +9,8 @@ export default function Profile() {
   const uid = handle;
 
   const [agentView, setAgentView] = useState(false);
-  const [member, setMember] = useState(null);
+  const [member, setMember] = useState(null); // AINative profile (source of truth)
+  const [skills, setSkills] = useState([]);   // SC-specific, from member_directory
   const [stats, setStats] = useState(null);
   const [initialFollowing, setInitialFollowing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -30,34 +29,40 @@ export default function Profile() {
     setNotFound(false);
     setEditing(false);
     (async () => {
+      // Resolve who I am first (AINative profile) so we know if this is self.
+      let myId = null;
       try {
-        const m = await get(`/api/members/${uid}`);
+        const meProf = await profileApi.me();
+        myId = meProf?.id;
+        if (live) setMeId(myId);
+      } catch { /* not fatal */ }
+
+      // Load the target profile. If it's me, /me returns the freshest copy.
+      try {
+        const p = (myId && myId === uid) ? await profileApi.me() : await profileApi.byId(uid);
         if (!live) return;
-        setMember(m.row_data ? { ...m.row_data, ...m } : m);
+        setMember(p);
+        setStats({
+          followers: p.followers_count ?? 0,
+          following: p.following_count ?? 0,
+          friends: p.friends_count ?? 0,
+        });
       } catch (err) {
-        if (live && err?.status === 404) setNotFound(true);
+        if (live && (err?.status === 404)) setNotFound(true);
       } finally {
         if (live) setLoading(false);
       }
-      // Social data is best-effort; failures shouldn't block the profile.
+
+      // SC-specific skills from the member_directory (best-effort supplement).
       try {
-        const [followers, following] = await Promise.all([
-          social.followers(uid).catch(() => null),
-          social.following(uid).catch(() => null),
-        ]);
-        if (!live) return;
-        setStats({
-          followers: followers?.total ?? (followers?.followers?.length ?? 0),
-          following: following?.total ?? (following?.following?.length ?? 0),
-        });
+        const m = await get(`/api/members/${uid}`);
+        const sk = m?.row_data?.skills || m?.skills;
+        if (live && Array.isArray(sk)) setSkills(sk);
       } catch { /* non-critical */ }
 
-      // Seed the follow button: am I already following this person?
+      // Seed the follow button.
       try {
-        const meRes = await get('/api/members/me');
-        const myId = meRes?.row_data?.user_id || meRes?.user_id || meRes?.id;
         if (myId && live) {
-          setMeId(myId);
           const mine = await social.following(myId).catch(() => null);
           const list = mine?.following || mine?.items || [];
           setInitialFollowing(list.some(f => (f.user_id || f.id || f.uid) === uid));
@@ -81,10 +86,9 @@ export default function Profile() {
 
   const startEdit = () => {
     setForm({
-      display_name: member.display_name || '',
-      github: member.github || '',
-      availability: AVAILABILITY.includes(member.availability) ? member.availability : 'open_to_collab',
-      skills: (Array.isArray(member.skills) ? member.skills : []).join(', '),
+      location: member.location || '',
+      website: member.website || '',
+      ask_me_anything: member.ask_me_anything || '',
     });
     setEditing(true);
   };
@@ -92,17 +96,20 @@ export default function Profile() {
   const saveProfile = async () => {
     if (saving) return;
     setSaving(true);
+    // Only fields the platform profile PATCH accepts today (bio/avatar/social
+    // are broken upstream — see #50).
     const payload = {
-      display_name: form.display_name.trim() || undefined,
-      github: form.github.trim() || undefined,
-      availability: form.availability,
-      skills: form.skills.split(',').map(s => s.trim()).filter(Boolean),
+      location: form.location.trim() || null,
+      website: form.website.trim() || null,
+      ask_me_anything: form.ask_me_anything.trim() || null,
     };
     try {
-      await patch('/api/members/me', payload);
+      await profileApi.update(payload);
+      // Upstream write is eventually consistent; reflect locally now, refetch soon.
       setMember(m => ({ ...m, ...payload }));
       setEditing(false);
       flash('Profile saved');
+      setTimeout(() => { profileApi.me().then(setMember).catch(() => {}); }, 1500);
     } catch {
       flash('Could not save profile');
     } finally {
@@ -129,15 +136,18 @@ export default function Profile() {
     );
   }
 
-  const name = member.display_name || member.name || member.handle || 'Member';
-  const skills = Array.isArray(member.skills) ? member.skills : [];
+  const name = member.full_name || member.username || member.name || 'Member';
   const letter = name.charAt(0).toUpperCase() || '?';
+  const metaLine = [member.username && `@${member.username}`, member.location].filter(Boolean).join(' · ') || 'Santa Cruz';
   const agentJson = JSON.stringify({
-    user_id: member.user_id || uid,
-    display_name: name,
+    user_id: member.id || uid,
+    full_name: name,
+    username: member.username || null,
+    location: member.location || null,
+    website: member.website || null,
     skills,
-    availability: member.availability || 'unknown',
-    github: member.github || null,
+    followers: member.followers_count ?? 0,
+    following: member.following_count ?? 0,
     contactable_by_agents: true,
   }, null, 2);
 
@@ -154,10 +164,14 @@ export default function Profile() {
           }}>{letter}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: "'Space Grotesk'", fontWeight: 700, fontSize: 20, color: 'var(--fg)' }}>{name}</div>
-            <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 12, color: 'var(--mfg)' }}>{member.availability || 'Santa Cruz'}</div>
+            <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 12, color: 'var(--mfg)' }}>{metaLine}</div>
+            {member.website && (
+              <a href={member.website} target="_blank" rel="noreferrer" style={{ fontFamily: "'JetBrains Mono'", fontSize: 12, color: 'var(--primary)', textDecoration: 'none' }}>{member.website.replace(/^https?:\/\//, '')}</a>
+            )}
             <div style={{ display: 'flex', gap: 14, marginTop: 8, fontSize: 12, color: 'var(--mfg)' }}>
               <span><b style={{ color: 'var(--fg)', fontFamily: "'Space Grotesk'" }}>{stats?.following ?? '—'}</b> following</span>
               <span><b style={{ color: 'var(--fg)', fontFamily: "'Space Grotesk'" }}>{stats?.followers ?? '—'}</b> followers</span>
+              {stats?.friends != null && <span><b style={{ color: 'var(--fg)', fontFamily: "'Space Grotesk'" }}>{stats.friends}</b> friends</span>}
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7, alignItems: 'stretch' }}>
@@ -187,26 +201,20 @@ export default function Profile() {
 
         {editing && form && (
           <div style={{ padding: '18px 24px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <label style={{ fontFamily: "'JetBrains Mono'", fontSize: 10, letterSpacing: '.5px', color: 'var(--mfg)' }}>DISPLAY NAME
-              <input value={form.display_name} onChange={e => setForm(f => ({ ...f, display_name: e.target.value }))}
-                style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 4, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--fg)', fontFamily: 'Inter', fontSize: 14, padding: '9px 11px' }} />
-            </label>
-            <label style={{ fontFamily: "'JetBrains Mono'", fontSize: 10, letterSpacing: '.5px', color: 'var(--mfg)' }}>SKILLS (comma-separated)
-              <input value={form.skills} onChange={e => setForm(f => ({ ...f, skills: e.target.value }))} placeholder="rust, wasm, design"
-                style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 4, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--fg)', fontFamily: 'Inter', fontSize: 14, padding: '9px 11px' }} />
-            </label>
             <div style={{ display: 'flex', gap: 10 }}>
-              <label style={{ flex: 1, fontFamily: "'JetBrains Mono'", fontSize: 10, letterSpacing: '.5px', color: 'var(--mfg)' }}>GITHUB
-                <input value={form.github} onChange={e => setForm(f => ({ ...f, github: e.target.value }))}
+              <label style={{ flex: 1, fontFamily: "'JetBrains Mono'", fontSize: 10, letterSpacing: '.5px', color: 'var(--mfg)' }}>LOCATION
+                <input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} placeholder="Santa Cruz, CA"
                   style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 4, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--fg)', fontFamily: 'Inter', fontSize: 14, padding: '9px 11px' }} />
               </label>
-              <label style={{ flex: 1, fontFamily: "'JetBrains Mono'", fontSize: 10, letterSpacing: '.5px', color: 'var(--mfg)' }}>AVAILABILITY
-                <select value={form.availability} onChange={e => setForm(f => ({ ...f, availability: e.target.value }))}
-                  style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 4, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--fg)', fontFamily: 'Inter', fontSize: 14, padding: '9px 11px' }}>
-                  {AVAILABILITY.map(a => <option key={a} value={a}>{a.replace(/_/g, ' ')}</option>)}
-                </select>
+              <label style={{ flex: 1, fontFamily: "'JetBrains Mono'", fontSize: 10, letterSpacing: '.5px', color: 'var(--mfg)' }}>WEBSITE
+                <input value={form.website} onChange={e => setForm(f => ({ ...f, website: e.target.value }))} placeholder="https://…"
+                  style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 4, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--fg)', fontFamily: 'Inter', fontSize: 14, padding: '9px 11px' }} />
               </label>
             </div>
+            <label style={{ fontFamily: "'JetBrains Mono'", fontSize: 10, letterSpacing: '.5px', color: 'var(--mfg)' }}>ASK ME ANYTHING
+              <textarea value={form.ask_me_anything} onChange={e => setForm(f => ({ ...f, ask_me_anything: e.target.value }))} placeholder="Topics you can help others with…" rows={2}
+                style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 4, resize: 'vertical', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--fg)', fontFamily: 'Inter', fontSize: 14, padding: '9px 11px' }} />
+            </label>
             <button onClick={saveProfile} disabled={saving} style={{
               alignSelf: 'flex-start', fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: 13, color: '#fff',
               background: 'var(--accent)', border: 'none', padding: '9px 18px', borderRadius: 9,
@@ -229,6 +237,12 @@ export default function Profile() {
 
         {!agentView ? (
           <div style={{ padding: '20px 24px' }}>
+            {member.ask_me_anything && (
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 10, letterSpacing: '.5px', color: 'var(--mfg)', marginBottom: 6 }}>ASK ME ANYTHING</div>
+                <div style={{ fontSize: 13.5, lineHeight: 1.5, color: 'var(--fg)' }}>{member.ask_me_anything}</div>
+              </div>
+            )}
             <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 10, letterSpacing: '.5px', color: 'var(--mfg)', marginBottom: 9 }}>SKILLS</div>
             {skills.length ? (
               <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>

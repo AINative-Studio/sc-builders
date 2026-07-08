@@ -21,13 +21,12 @@ _UP = "/api/v1/public/profile"
 
 
 class ProfileUpdate(BaseModel):
-    bio: str | None = Field(None, max_length=5000)
-    avatar_url: str | None = Field(None, max_length=500)
-    cover_photo_url: str | None = Field(None, max_length=500)
+    # Only the fields the upstream PATCH actually accepts are exposed. Upstream
+    # currently rejects `bio` (500: "no setter"), `avatar_url` and `social_links`
+    # (401) — see #50 / platform bug. Re-add them here once the platform is fixed.
     location: str | None = Field(None, max_length=255)
     website: str | None = Field(None, max_length=500)
     ask_me_anything: str | None = Field(None, max_length=5000)
-    social_links: dict | None = None
     profile_visibility: str | None = None
     show_online_status: bool | None = None
     allow_messages_from: str | None = None

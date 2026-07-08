@@ -24,19 +24,19 @@ class TestUpdateMyProfile:
     def test_patch_me(self, client, mock_api):
         stub_auth_me(mock_api)
         route = mock_api.patch("/api/v1/public/profile/me").mock(
-            return_value=httpx.Response(200, json={"id": "u-1", "bio": "updated", "location": "Santa Cruz"})
+            return_value=httpx.Response(200, json={"id": "u-1", "location": "Santa Cruz"})
         )
         r = client.patch(
             "/api/profile/me",
             headers=AUTH_HEADER,
-            json={"bio": "updated", "location": "Santa Cruz"},
+            json={"location": "Santa Cruz", "website": "https://ex.com"},
         )
         assert r.status_code == 200
         sent = json.loads(route.calls.last.request.content)
-        assert sent["bio"] == "updated"
         assert sent["location"] == "Santa Cruz"
+        assert sent["website"] == "https://ex.com"
         # exclude_none: unset fields shouldn't be forwarded.
-        assert "website" not in sent
+        assert "ask_me_anything" not in sent
 
     def test_patch_me_no_auth(self, client):
         r = client.patch("/api/profile/me", json={"bio": "x"})

@@ -84,6 +84,13 @@ export const social = {
   myStats: () => get('/api/social/me/stats'),
 };
 
+// User profile — /api/profile/* (proxies AINative platform profile)
+export const profile = {
+  me: () => get('/api/profile/me'),
+  update: (body) => patch('/api/profile/me', body),
+  byId: (id) => get(`/api/profile/${id}`),
+};
+
 // Intent casting — /api/intents/* (proxies AINative platform intent-casting API)
 export const intents = {
   create: (body) => post('/api/intents', body),
