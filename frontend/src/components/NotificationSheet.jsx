@@ -17,7 +17,19 @@ export default function NotificationSheet({ onClose, onCountChange }) {
       .finally(() => setLoading(false));
   }, []);
 
-  const go = (path) => { onClose(); nav(path); };
+  async function markRead(n) {
+    const eventId = n.event_id || n.id || n._id;
+    if (!eventId || n._read) return;
+    // Optimistically mark this one read and decrement the unread count.
+    setNotifications(prev => {
+      const next = prev.map(x => x === n ? { ...x, _read: true } : x);
+      if (onCountChange) onCountChange(next.filter(x => !x._read).length);
+      return next;
+    });
+    try { await post('/api/notifications/read', { event_ids: [eventId] }); } catch {}
+  }
+
+  const go = (n, path) => { markRead(n); onClose(); nav(path); };
 
   async function markAllRead() {
     try {
@@ -84,7 +96,7 @@ export default function NotificationSheet({ onClose, onCountChange }) {
               <div style={{ fontFamily: "'JetBrains Mono'", fontSize: 10, letterSpacing: '.5px', color: 'var(--mfg)', marginBottom: 10 }}>RECENT</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {notifications.map((n, i) => (
-                  <button key={n.id || n._id || i} onClick={() => go(getNotifPath(n))} style={{
+                  <button key={n.id || n._id || i} onClick={() => go(n, getNotifPath(n))} style={{
                     textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer',
                     padding: '11px 12px', borderRadius: 10,
                     display: 'flex', gap: 11, alignItems: 'flex-start',

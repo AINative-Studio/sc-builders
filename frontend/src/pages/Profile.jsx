@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { get, social } from '../api';
+import { get, patch, social } from '../api';
 import FollowButton from '../components/FollowButton';
+
+const AVAILABILITY = ['open_to_collab', 'busy', 'looking_for_work', 'hiring'];
 
 export default function Profile() {
   const nav = useNavigate();
@@ -15,11 +17,18 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [action, setAction] = useState(null); // transient status message
+  const [meId, setMeId] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const isSelf = meId && meId === uid;
 
   useEffect(() => {
     let live = true;
     setLoading(true);
     setNotFound(false);
+    setEditing(false);
     (async () => {
       try {
         const m = await get(`/api/members/${uid}`);
@@ -46,9 +55,10 @@ export default function Profile() {
       // Seed the follow button: am I already following this person?
       try {
         const meRes = await get('/api/members/me');
-        const meId = meRes?.row_data?.user_id || meRes?.user_id || meRes?.id;
-        if (meId && live) {
-          const mine = await social.following(meId).catch(() => null);
+        const myId = meRes?.row_data?.user_id || meRes?.user_id || meRes?.id;
+        if (myId && live) {
+          setMeId(myId);
+          const mine = await social.following(myId).catch(() => null);
           const list = mine?.following || mine?.items || [];
           setInitialFollowing(list.some(f => (f.user_id || f.id || f.uid) === uid));
         }
@@ -67,6 +77,37 @@ export default function Profile() {
     if (!window.confirm('Block this member? They will no longer be able to interact with you.')) return;
     try { await social.block(uid); flash('Member blocked'); }
     catch { flash('Could not block'); }
+  };
+
+  const startEdit = () => {
+    setForm({
+      display_name: member.display_name || '',
+      github: member.github || '',
+      availability: AVAILABILITY.includes(member.availability) ? member.availability : 'open_to_collab',
+      skills: (Array.isArray(member.skills) ? member.skills : []).join(', '),
+    });
+    setEditing(true);
+  };
+
+  const saveProfile = async () => {
+    if (saving) return;
+    setSaving(true);
+    const payload = {
+      display_name: form.display_name.trim() || undefined,
+      github: form.github.trim() || undefined,
+      availability: form.availability,
+      skills: form.skills.split(',').map(s => s.trim()).filter(Boolean),
+    };
+    try {
+      await patch('/api/members/me', payload);
+      setMember(m => ({ ...m, ...payload }));
+      setEditing(false);
+      flash('Profile saved');
+    } catch {
+      flash('Could not save profile');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const tabStyle = (active) => ({
@@ -120,19 +161,59 @@ export default function Profile() {
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7, alignItems: 'stretch' }}>
-            <FollowButton uid={uid} initialFollowing={initialFollowing} size="md" />
-            <button onClick={onFriendRequest} style={{
-              fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: '11.5px',
-              color: 'var(--fg)', background: 'transparent', border: '1px solid var(--border)',
-              padding: '6px 12px', borderRadius: 9, cursor: 'pointer', whiteSpace: 'nowrap',
-            }}>+ Friend</button>
-            <button onClick={onBlock} style={{
-              fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: '11.5px',
-              color: 'var(--mfg)', background: 'transparent', border: '1px solid var(--border)',
-              padding: '6px 12px', borderRadius: 9, cursor: 'pointer', whiteSpace: 'nowrap',
-            }}>Block</button>
+            {isSelf ? (
+              <button onClick={editing ? () => setEditing(false) : startEdit} style={{
+                fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: '12.5px',
+                color: 'var(--fg)', background: 'var(--card)', border: '1px solid var(--border)',
+                padding: '8px 15px', borderRadius: 9, cursor: 'pointer', whiteSpace: 'nowrap',
+              }}>{editing ? 'Cancel' : 'Edit profile'}</button>
+            ) : (
+              <>
+                <FollowButton uid={uid} initialFollowing={initialFollowing} size="md" />
+                <button onClick={onFriendRequest} style={{
+                  fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: '11.5px',
+                  color: 'var(--fg)', background: 'transparent', border: '1px solid var(--border)',
+                  padding: '6px 12px', borderRadius: 9, cursor: 'pointer', whiteSpace: 'nowrap',
+                }}>+ Friend</button>
+                <button onClick={onBlock} style={{
+                  fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: '11.5px',
+                  color: 'var(--mfg)', background: 'transparent', border: '1px solid var(--border)',
+                  padding: '6px 12px', borderRadius: 9, cursor: 'pointer', whiteSpace: 'nowrap',
+                }}>Block</button>
+              </>
+            )}
           </div>
         </div>
+
+        {editing && form && (
+          <div style={{ padding: '18px 24px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <label style={{ fontFamily: "'JetBrains Mono'", fontSize: 10, letterSpacing: '.5px', color: 'var(--mfg)' }}>DISPLAY NAME
+              <input value={form.display_name} onChange={e => setForm(f => ({ ...f, display_name: e.target.value }))}
+                style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 4, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--fg)', fontFamily: 'Inter', fontSize: 14, padding: '9px 11px' }} />
+            </label>
+            <label style={{ fontFamily: "'JetBrains Mono'", fontSize: 10, letterSpacing: '.5px', color: 'var(--mfg)' }}>SKILLS (comma-separated)
+              <input value={form.skills} onChange={e => setForm(f => ({ ...f, skills: e.target.value }))} placeholder="rust, wasm, design"
+                style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 4, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--fg)', fontFamily: 'Inter', fontSize: 14, padding: '9px 11px' }} />
+            </label>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <label style={{ flex: 1, fontFamily: "'JetBrains Mono'", fontSize: 10, letterSpacing: '.5px', color: 'var(--mfg)' }}>GITHUB
+                <input value={form.github} onChange={e => setForm(f => ({ ...f, github: e.target.value }))}
+                  style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 4, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--fg)', fontFamily: 'Inter', fontSize: 14, padding: '9px 11px' }} />
+              </label>
+              <label style={{ flex: 1, fontFamily: "'JetBrains Mono'", fontSize: 10, letterSpacing: '.5px', color: 'var(--mfg)' }}>AVAILABILITY
+                <select value={form.availability} onChange={e => setForm(f => ({ ...f, availability: e.target.value }))}
+                  style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 4, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--fg)', fontFamily: 'Inter', fontSize: 14, padding: '9px 11px' }}>
+                  {AVAILABILITY.map(a => <option key={a} value={a}>{a.replace(/_/g, ' ')}</option>)}
+                </select>
+              </label>
+            </div>
+            <button onClick={saveProfile} disabled={saving} style={{
+              alignSelf: 'flex-start', fontFamily: "'Space Grotesk'", fontWeight: 600, fontSize: 13, color: '#fff',
+              background: 'var(--accent)', border: 'none', padding: '9px 18px', borderRadius: 9,
+              cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.6 : 1,
+            }}>{saving ? 'Saving…' : 'Save'}</button>
+          </div>
+        )}
 
         {action && (
           <div style={{ padding: '8px 24px', background: 'var(--muted)', borderBottom: '1px solid var(--border)', fontFamily: "'JetBrains Mono'", fontSize: 11, color: 'var(--success)' }}>{action}</div>
