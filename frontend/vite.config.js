@@ -11,6 +11,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: true,
       },
+      '/ws': {
+        target: 'wss://sc-builders-production.up.railway.app',
+        ws: true,
+        secure: true,
+      },
     },
   },
 })
