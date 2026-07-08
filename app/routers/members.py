@@ -59,7 +59,9 @@ async def update_my_profile(
     rows = existing.get("data", [])
 
     if rows:
-        row_id = rows[0].get("id") or rows[0].get("_id")
+        row_id = rows[0].get("id") or rows[0].get("_id") or rows[0].get("row_id") or rows[0].get("_row_id")
+        if not row_id:
+            raise HTTPException(status_code=500, detail="Could not resolve member row id")
         return await update_row(TABLE, str(row_id), updates)
 
     row_data = {"user_id": user_id, "display_name": "", "skills": [], "github": "", "availability": ""}
