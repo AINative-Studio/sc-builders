@@ -7,6 +7,11 @@ from app.proxy import forward
 router = APIRouter(prefix="/api/comments", tags=["Comments"])
 
 
+# Upstream lives under /api/v1/public/v1/comments and uses fields
+# {content_type, content_id, comment}. It expects content_id as an integer.
+_UP = "/api/v1/public/v1/comments"
+
+
 @router.post("", status_code=201)
 async def create_comment(
     body: CommentCreate,
@@ -15,10 +20,11 @@ async def create_comment(
 ):
     return await forward(
         "POST",
-        "/api/v1/community/comments",
+        _UP,
         bearer_token=token,
+        expected_status=201,
         json={
-            "content": body.content,
+            "comment": body.content,
             "content_type": body.content_type,
             "content_id": body.content_id,
         },
@@ -34,7 +40,7 @@ async def list_comments(
 ):
     return await forward(
         "GET",
-        f"/api/v1/community/comments/{content_type}/{content_id}",
+        f"{_UP}/{content_type}/{content_id}",
         params={"limit": limit, "offset": offset},
     )
 
@@ -47,6 +53,6 @@ async def delete_comment(
 ):
     return await forward(
         "DELETE",
-        f"/api/v1/community/comments/{comment_id}",
+        f"{_UP}/{comment_id}",
         bearer_token=token,
     )
