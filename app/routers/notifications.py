@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Depends
 
 from app.deps import current_user
@@ -17,18 +19,29 @@ NOTIFICATION_SOURCES = [
 
 
 async def _gather_notifications(limit: int = 50) -> list[dict]:
-    """Pull recent rows from community tables as notification items."""
-    items = []
+    """Pull recent rows from community tables as notification items.
+
+    Each source is a slow upstream query; run them concurrently rather than
+    serially (was the dominant cost — ~3x the latency of a single query).
+    """
     per_table = max(limit // len(NOTIFICATION_SOURCES), 5)
-    for table, event_type in NOTIFICATION_SOURCES:
+
+    async def _pull(table: str, event_type: str) -> list[dict]:
         try:
             result = await query_rows(table, sort={"created_at": -1}, limit=per_table)
-            for row in result.get("data", []):
-                flat = _flatten_row(row)
-                flat["type"] = event_type
-                items.append(flat)
         except Exception:
-            pass
+            return []
+        out = []
+        for row in result.get("data", []):
+            flat = _flatten_row(row)
+            flat["type"] = event_type
+            out.append(flat)
+        return out
+
+    groups = await asyncio.gather(
+        *(_pull(table, event_type) for table, event_type in NOTIFICATION_SOURCES)
+    )
+    items = [item for group in groups for item in group]
     items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
     return items[:limit]
 
@@ -39,21 +52,28 @@ async def get_notifications(
     limit: int = 50,
     user: dict = Depends(current_user),
 ):
-    items = await _gather_notifications(limit=limit)
+    user_id = str(user.get("id", ""))
+
+    async def _load_reads() -> set:
+        try:
+            reads = await query_rows(
+                READS_TABLE,
+                filters={"user_id": {"$eq": user_id}},
+                limit=1000,
+            )
+            return {r.get("event_id") or r.get("row_data", {}).get("event_id") for r in reads.get("data", [])}
+        except Exception:
+            return set()
+
+    # The notification sources and the per-user read set are independent —
+    # fetch them concurrently.
+    items, read_ids = await asyncio.gather(
+        _gather_notifications(limit=limit),
+        _load_reads(),
+    )
 
     if event_type:
         items = [i for i in items if i.get("type", "").startswith(event_type)]
-
-    user_id = str(user.get("id", ""))
-    try:
-        reads = await query_rows(
-            READS_TABLE,
-            filters={"user_id": {"$eq": user_id}},
-            limit=1000,
-        )
-        read_ids = {r.get("event_id") or r.get("row_data", {}).get("event_id") for r in reads.get("data", [])}
-    except Exception:
-        read_ids = set()
 
     unread_count = 0
     for item in items:
