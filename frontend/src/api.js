@@ -99,3 +99,12 @@ export const intents = {
   action: (id, matchAgentId, action, message) =>
     post(`/api/intents/${id}/action/${matchAgentId}`, { action, ...(message ? { message } : {}) }),
 };
+
+// Comments — /api/comments/* (proxies AINative platform comments API).
+// content_type is one of: channel | event | announcement.
+export const comments = {
+  list: (contentType, contentId) => get(`/api/comments/${contentType}/${contentId}`),
+  create: (contentType, contentId, content) =>
+    post('/api/comments', { content, content_type: contentType, content_id: String(contentId) }),
+  remove: (commentId) => del(`/api/comments/${commentId}`),
+};

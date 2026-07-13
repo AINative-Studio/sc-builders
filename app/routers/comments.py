@@ -8,7 +8,8 @@ router = APIRouter(prefix="/api/comments", tags=["Comments"])
 
 
 # Upstream lives under /api/v1/public/v1/comments and uses fields
-# {content_type, content_id, comment}. It expects content_id as an integer.
+# {content_type, content_id, comment}. content_id accepts strings/UUIDs
+# (AINative core #5041/#5046).
 _UP = "/api/v1/public/v1/comments"
 
 

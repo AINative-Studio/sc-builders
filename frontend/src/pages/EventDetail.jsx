@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { get, post } from '../api';
+import CommentThread from '../components/CommentThread';
 
 const AVATAR_COLORS = [
   'var(--accent)', 'var(--success)', 'var(--primary)',
@@ -144,6 +145,10 @@ export default function EventDetail() {
           <button onClick={() => handleRsvp('maybe')} style={btnStyle(rsvp === 'maybe')}>Maybe</button>
           <button onClick={() => handleRsvp('not_going')} style={btnStyle(rsvp === 'not_going')}>Can't go</button>
         </div>
+      </div>
+
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 16, padding: '20px 24px', marginTop: 14 }}>
+        <CommentThread contentType="event" contentId={id} meId={me} />
       </div>
     </div>
   );
