@@ -107,6 +107,31 @@ class TestUpdateMyProfile:
         )
         assert r.status_code == 200
 
+    def test_partial_update_preserves_other_fields(self, client, mock_api):
+        # A partial PATCH must not wipe fields it didn't send. ZeroDB PUT replaces
+        # the whole row_data, so update_row must read-merge-write.
+        import json as _json
+        stub_auth_me(mock_api)
+        row = {"row_id": "mem-9", "user_id": "user-001", "display_name": "Tester",
+               "skills": ["python"], "github": "tester", "availability": "open_to_collab"}
+        mock_api.post(f"{_table_prefix()}/query").mock(
+            return_value=httpx.Response(200, json={"data": [row]})
+        )
+        # get_row (read-before-write) returns the current row wrapped as ZeroDB does.
+        mock_api.get(f"{_table_prefix()}/rows/mem-9").mock(
+            return_value=httpx.Response(200, json={"row_data": row, "row_id": "mem-9"})
+        )
+        put = mock_api.put(f"{_table_prefix()}/rows/mem-9").mock(
+            return_value=httpx.Response(200, json={"row_data": {**row, "display_name": "New"}})
+        )
+        r = client.patch("/api/members/me", json={"display_name": "New"}, headers=AUTH_HEADER)
+        assert r.status_code == 200
+        # The PUT body must carry the merged row — untouched fields still present.
+        sent = _json.loads(put.calls.last.request.content)["row_data"]
+        assert sent["display_name"] == "New"
+        assert sent["skills"] == ["python"]      # not wiped
+        assert sent["github"] == "tester"        # not wiped
+
     def test_update_row_keyed_by_row_id(self, client, mock_api):
         # Real ZeroDB rows expose the id as `row_id`, not `id`. The update must
         # resolve that, otherwise it PATCHes .../rows/None and 500s (prod bug).

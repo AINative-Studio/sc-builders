@@ -49,8 +49,20 @@ async def get_row(table: str, row_id: str, *, bearer_token: str | None = None) -
 
 async def update_row(table: str, row_id: str, data: dict, *, bearer_token: str | None = None) -> dict:
     path = f"{_table_path(table)}/rows/{row_id}"
-    # ZeroDB row updates are PUT, not PATCH (PATCH returns 405 Method Not Allowed).
-    r = await api_request("PUT", path, json={"row_data": data}, bearer_token=bearer_token)
+    # ZeroDB row updates are PUT (PATCH returns 405), and PUT *replaces* the whole
+    # row_data — so a partial update would wipe every field not sent. Read the
+    # current row and merge the changes on top before writing the full object.
+    merged = dict(data)
+    try:
+        existing = await get_row(table, row_id, bearer_token=bearer_token)
+        current = existing.get("row_data") or existing.get("data") or {}
+        if isinstance(current, dict):
+            merged = {**current, **data}
+    except Exception:
+        # If the row can't be read, fall back to writing just the provided fields
+        # (matches prior behavior) rather than failing the update outright.
+        pass
+    r = await api_request("PUT", path, json={"row_data": merged}, bearer_token=bearer_token)
     r.raise_for_status()
     return r.json()
 
